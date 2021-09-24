@@ -1,5 +1,13 @@
 use bevy::prelude::*;
 
+pub struct PiecePlugin;
+impl Plugin for PiecePlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app.add_startup_system(create_pieces.system())
+            .add_system(move_pieces.system());
+    }
+}
+
 #[derive(Copy, Clone)]
 pub struct Piece {
     pub colour: PieceColour,
@@ -22,7 +30,20 @@ pub enum PieceColour {
     Black,
 }
 
-pub fn create_pieces(
+fn move_pieces(
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &Piece)>
+) {
+    for (mut transform, piece) in query.iter_mut() {
+        let direction = Vec3::new(piece.x as f32, 0.0, piece.y as f32) - transform.translation;
+
+        if direction.length() > 0.1 {
+            transform.translation += direction.normalize() * time.delta_seconds();
+        }
+    }
+}
+
+fn create_pieces(
     mut commands: Commands,
     assets: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,

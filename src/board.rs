@@ -1,11 +1,13 @@
 use bevy::prelude::*;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
+use crate::pieces::Piece;
 
 pub struct BoardPlugin;
 impl Plugin for BoardPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<SquareMaterials>()
             .init_resource::<SelectedSquare>()
+            .init_resource::<SelectedPiece>()
             .add_startup_system(create_board.system())
             .add_system(colour_squares.system())
             .add_system(select_square.system());
@@ -25,6 +27,8 @@ impl Square {
 
 #[derive(Default)]
 struct SelectedSquare(Option<Entity>);
+#[derive(Default)]
+struct SelectedPiece(Option<Entity>);
 
 fn create_board(
     mut commands: Commands,
@@ -84,16 +88,38 @@ fn colour_squares(
 fn select_square(
     input: Res<Input<MouseButton>>,
     mut selected_square: ResMut<SelectedSquare>,
+    mut selected_piece: ResMut<SelectedPiece>,
     pick_state: Query<&PickingCamera>,
+    squares: Query<&Square>,
+    mut pieces: Query<(Entity, &mut Piece)>
 ) {
     if !input.just_pressed(MouseButton::Left) {
         return;
     }
 
-    selected_square.0 = if let Some((entity, _)) = pick_state.single().unwrap().intersect_top() {
-        Some(entity)
+    if let Some((square_entity, _)) = pick_state.single().unwrap().intersect_top() {
+        if let Ok(square) = squares.get(square_entity) {
+            selected_square.0 = Some(square_entity);
+
+            if let Some(piece) = selected_piece.0 {
+                if let Ok((_, mut piece)) = pieces.get_mut(piece) {
+                    piece.x = square.x;
+                    piece.y = square.y;
+                };
+                selected_square.0 = None;
+                selected_piece.0 = None;
+            } else {
+                for (piece_entity, piece) in pieces.iter_mut() {
+                    if piece.x == square.x && piece.y == square.y {
+                        selected_piece.0 = Some(piece_entity);
+                        break;
+                    }
+                }
+            }
+        }
     } else {
-        None
+        selected_square.0 = None;
+        selected_piece.0 = None;
     };
 }
 

@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_mod_picking::{PickingPlugin, PickingCameraBundle};
 use crate::board::BoardPlugin;
+use crate::pieces::PiecePlugin;
 
 mod board;
 mod pieces;
@@ -17,8 +18,8 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(PickingPlugin)
         .add_plugin(BoardPlugin)
+        .add_plugin(PiecePlugin)
         .add_startup_system(setup.system())
-        .add_startup_system(pieces::create_pieces.system())
         .run();
 }
 
