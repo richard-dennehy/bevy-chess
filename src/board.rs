@@ -1,6 +1,6 @@
+use crate::pieces::Piece;
 use bevy::prelude::*;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
-use crate::pieces::Piece;
 
 pub struct BoardPlugin;
 impl Plugin for BoardPlugin {
@@ -91,7 +91,7 @@ fn select_square(
     mut selected_piece: ResMut<SelectedPiece>,
     pick_state: Query<&PickingCamera>,
     squares: Query<&Square>,
-    mut pieces: Query<(Entity, &mut Piece)>
+    mut pieces: Query<(Entity, &mut Piece)>,
 ) {
     if !input.just_pressed(MouseButton::Left) {
         return;
@@ -100,11 +100,14 @@ fn select_square(
     if let Some((square_entity, _)) = pick_state.single().unwrap().intersect_top() {
         if let Ok(square) = squares.get(square_entity) {
             selected_square.0 = Some(square_entity);
+            let pieces_copy = pieces.iter_mut().map(|(_, piece)| *piece).collect::<Vec<_>>();
 
             if let Some(piece) = selected_piece.0 {
                 if let Ok((_, mut piece)) = pieces.get_mut(piece) {
-                    piece.x = square.x;
-                    piece.y = square.y;
+                    if piece.valid_move((square.x, square.y), &pieces_copy) {
+                        piece.x = square.x;
+                        piece.y = square.y;
+                    }
                 };
                 selected_square.0 = None;
                 selected_piece.0 = None;
