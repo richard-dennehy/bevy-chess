@@ -1,4 +1,4 @@
-use crate::pieces::Piece;
+use crate::pieces::{Piece, PieceColour};
 use bevy::prelude::*;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
 
@@ -8,6 +8,7 @@ impl Plugin for BoardPlugin {
         app.init_resource::<SquareMaterials>()
             .init_resource::<SelectedSquare>()
             .init_resource::<SelectedPiece>()
+            .init_resource::<PlayerTurn>()
             .add_startup_system(create_board.system())
             .add_system(colour_squares.system())
             .add_system(select_square.system());
@@ -29,6 +30,12 @@ impl Square {
 struct SelectedSquare(Option<Entity>);
 #[derive(Default)]
 struct SelectedPiece(Option<Entity>);
+struct PlayerTurn(PieceColour);
+impl Default for PlayerTurn {
+    fn default() -> Self {
+        PlayerTurn(PieceColour::White)
+    }
+}
 
 fn create_board(
     mut commands: Commands,
@@ -86,12 +93,14 @@ fn colour_squares(
 }
 
 fn select_square(
+    mut commands: Commands,
     input: Res<Input<MouseButton>>,
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
+    mut turn: ResMut<PlayerTurn>,
     pick_state: Query<&PickingCamera>,
     squares: Query<&Square>,
-    mut pieces: Query<(Entity, &mut Piece)>,
+    mut pieces: Query<(Entity, &mut Piece, &Children)>,
 ) {
     if !input.just_pressed(MouseButton::Left) {
         return;
@@ -100,20 +109,48 @@ fn select_square(
     if let Some((square_entity, _)) = pick_state.single().unwrap().intersect_top() {
         if let Ok(square) = squares.get(square_entity) {
             selected_square.0 = Some(square_entity);
-            let pieces_copy = pieces.iter_mut().map(|(_, piece)| *piece).collect::<Vec<_>>();
+            let piece_entities_copy = pieces
+                .iter_mut()
+                .map(|(entity, piece, children)| {
+                    (
+                        entity,
+                        *piece,
+                        children.iter().map(|child| *child).collect::<Vec<_>>(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let pieces_copy = pieces
+                .iter_mut()
+                .map(|(_, piece, _)| *piece)
+                .collect::<Vec<_>>();
 
             if let Some(piece) = selected_piece.0 {
-                if let Ok((_, mut piece)) = pieces.get_mut(piece) {
+                if let Ok((_, mut piece, _)) = pieces.get_mut(piece) {
                     if piece.valid_move((square.x, square.y), &pieces_copy) {
+                        piece_entities_copy
+                            .into_iter()
+                            .filter(|(_, other, _)| other.x == square.x && other.y == square.y)
+                            .for_each(|(other_entity, _, children)| {
+                                commands.entity(other_entity).despawn();
+                                children
+                                    .into_iter()
+                                    .for_each(|entity| commands.entity(entity).despawn());
+                            });
+
                         piece.x = square.x;
                         piece.y = square.y;
+
+                        turn.0 = match turn.0 {
+                            PieceColour::White => PieceColour::Black,
+                            PieceColour::Black => PieceColour::White
+                        };
                     }
                 };
                 selected_square.0 = None;
                 selected_piece.0 = None;
             } else {
-                for (piece_entity, piece) in pieces.iter_mut() {
-                    if piece.x == square.x && piece.y == square.y {
+                for (piece_entity, piece, _) in pieces.iter_mut() {
+                    if piece.x == square.x && piece.y == square.y && piece.colour == turn.0 {
                         selected_piece.0 = Some(piece_entity);
                         break;
                     }
