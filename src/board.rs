@@ -1,4 +1,5 @@
-use crate::pieces::{Piece, PieceColour};
+use bevy::app::{AppExit, Events};
+use crate::pieces::{Piece, PieceColour, PieceKind};
 use bevy::prelude::*;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
 
@@ -98,6 +99,7 @@ fn select_square(
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
     mut turn: ResMut<PlayerTurn>,
+    mut exit_events: ResMut<Events<AppExit>>,
     pick_state: Query<&PickingCamera>,
     squares: Query<&Square>,
     mut pieces: Query<(Entity, &mut Piece, &Children)>,
@@ -130,7 +132,18 @@ fn select_square(
                         piece_entities_copy
                             .into_iter()
                             .filter(|(_, other, _)| other.x == square.x && other.y == square.y)
-                            .for_each(|(other_entity, _, children)| {
+                            .for_each(|(other_entity, other, children)| {
+                                if other.kind == PieceKind::King {
+                                    println!(
+                                        "{} won",
+                                        match turn.0 {
+                                            PieceColour::White => "White",
+                                            PieceColour::Black => "Black",
+                                        }
+                                    );
+                                    exit_events.send(AppExit);
+                                }
+
                                 commands.entity(other_entity).despawn();
                                 children
                                     .into_iter()
@@ -142,7 +155,7 @@ fn select_square(
 
                         turn.0 = match turn.0 {
                             PieceColour::White => PieceColour::Black,
-                            PieceColour::Black => PieceColour::White
+                            PieceColour::Black => PieceColour::White,
                         };
                     }
                 };
