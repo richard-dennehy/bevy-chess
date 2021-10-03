@@ -31,7 +31,7 @@ impl Square {
 struct SelectedSquare(Option<Entity>);
 #[derive(Default)]
 struct SelectedPiece(Option<Entity>);
-struct PlayerTurn(PieceColour);
+pub struct PlayerTurn(pub PieceColour);
 impl Default for PlayerTurn {
     fn default() -> Self {
         PlayerTurn(PieceColour::White)

@@ -138,14 +138,14 @@ fn create_pieces(
     assets: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let king = assets.load("pieces.glb#Mesh0/Primitive0");
-    let king_cross = assets.load("pieces.glb#Mesh1/Primitive0");
-    let pawn = assets.load("pieces.glb#Mesh2/Primitive0");
-    let knight_base = assets.load("pieces.glb#Mesh3/Primitive0");
-    let knight = assets.load("pieces.glb#Mesh4/Primitive0");
-    let rook = assets.load("pieces.glb#Mesh5/Primitive0");
-    let bishop = assets.load("pieces.glb#Mesh6/Primitive0");
-    let queen = assets.load("pieces.glb#Mesh7/Primitive0");
+    let king = assets.load("meshes/pieces.glb#Mesh0/Primitive0");
+    let king_cross = assets.load("meshes/pieces.glb#Mesh1/Primitive0");
+    let pawn = assets.load("meshes/pieces.glb#Mesh2/Primitive0");
+    let knight_base = assets.load("meshes/pieces.glb#Mesh3/Primitive0");
+    let knight = assets.load("meshes/pieces.glb#Mesh4/Primitive0");
+    let rook = assets.load("meshes/pieces.glb#Mesh5/Primitive0");
+    let bishop = assets.load("meshes/pieces.glb#Mesh6/Primitive0");
+    let queen = assets.load("meshes/pieces.glb#Mesh7/Primitive0");
 
     let white = materials.add(Color::rgb(1.0, 0.8, 0.8).into());
     let black = materials.add(Color::rgb(0.0, 0.2, 0.2).into());
