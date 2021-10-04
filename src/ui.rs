@@ -10,10 +10,7 @@ impl Plugin for UiPlugin {
     }
 }
 
-fn update_next_move(
-    turn: Res<PlayerTurn>,
-    query: Query<(&mut Text, &NextMoveText)>,
-) {
+fn update_next_move(turn: Res<PlayerTurn>, query: Query<(&mut Text, &NextMoveText)>) {
     if !turn.is_changed() {
         return;
     }
@@ -38,8 +35,9 @@ fn initialise(
     let font = asset_server.load("fonts/FiraSans-Bold.ttf");
     let material = colour_materials.add(Color::NONE.into());
 
-    commands.spawn_bundle(UiCameraBundle::default());
     commands
+        .spawn_bundle(UiCameraBundle::default())
+        .commands()
         .spawn_bundle(NodeBundle {
             style: Style {
                 position_type: PositionType::Absolute,

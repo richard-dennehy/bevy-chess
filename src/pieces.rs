@@ -8,7 +8,7 @@ impl Plugin for PiecePlugin {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Piece {
     pub colour: PieceColour,
     pub kind: PieceKind,
@@ -24,7 +24,7 @@ pub enum PieceKind {
     Rook,
     Pawn,
 }
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum PieceColour {
     White,
     Black,
