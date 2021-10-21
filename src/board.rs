@@ -11,24 +11,31 @@ impl Plugin for BoardPlugin {
             .init_resource::<SelectedSquare>()
             .init_resource::<SelectedPiece>()
             .init_resource::<PlayerTurn>()
-            .add_event::<ResetSelected>()
+            .add_state(GameState::NothingSelected)
             .add_startup_system(create_board.system())
             .add_system(colour_squares.system())
-            .add_system(select_square.system().label("select_square"))
-            .add_system(
-                move_piece
-                    .system()
-                    .after("select_square")
-                    .before("select_piece"),
+            .add_system_set(
+                SystemSet::on_enter(GameState::NothingSelected)
+                    .with_system(reset_selected.system()),
             )
-            .add_system(
-                select_piece
-                    .system()
-                    .after("select_square")
-                    .label("select_piece"),
+            .add_system_set(
+                SystemSet::on_update(GameState::NothingSelected)
+                    .with_system(select_square.system()),
             )
-            .add_system(reset_selected.system().after("select_square"))
-            .add_system(despawn_taken_pieces.system());
+            .add_system_set(
+                SystemSet::on_update(GameState::SquareSelected).with_system(select_piece.system()),
+            )
+            .add_system_set(
+                SystemSet::on_update(GameState::PieceSelected).with_system(select_square.system()),
+            )
+            .add_system_set(
+                SystemSet::on_update(GameState::TargetSquareSelected)
+                    .with_system(move_piece.system()),
+            )
+            .add_system_set(
+                SystemSet::on_exit(GameState::TargetSquareSelected)
+                    .with_system(despawn_taken_pieces.system()),
+            );
     }
 }
 
@@ -43,13 +50,32 @@ impl Square {
     }
 }
 
-struct ResetSelected;
 struct Taken;
 
 #[derive(Default)]
 struct SelectedSquare(Option<Entity>);
 #[derive(Default)]
 struct SelectedPiece(Option<Entity>);
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum GameState {
+    NothingSelected,
+    SquareSelected,
+    PieceSelected,
+    TargetSquareSelected,
+}
+
+impl core::fmt::Display for GameState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GameState::NothingSelected | GameState::SquareSelected => {
+                writeln!(f, "Select a piece to move")
+            }
+            GameState::PieceSelected => writeln!(f, "Select a target square"),
+            GameState::TargetSquareSelected => writeln!(f, "Moving piece to target square"),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct PlayerTurn(pub PieceColour);
@@ -65,19 +91,6 @@ impl PlayerTurn {
             PieceColour::White => PieceColour::Black,
             PieceColour::Black => PieceColour::White,
         }
-    }
-}
-
-impl core::fmt::Display for PlayerTurn {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "{}",
-            match self.0 {
-                PieceColour::White => "White",
-                PieceColour::Black => "Black",
-            }
-        )
     }
 }
 
@@ -117,11 +130,7 @@ fn colour_squares(
     pick_state: Query<&PickingCamera>,
     mut query: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
 ) {
-    let top_entity = if let Some((entity, _)) = pick_state.single().unwrap().intersect_top() {
-        Some(entity)
-    } else {
-        None
-    };
+    let top_entity = selected_entity(pick_state);
 
     for (entity, square, mut material) in query.iter_mut() {
         *material = if top_entity == Some(entity) {
@@ -137,9 +146,10 @@ fn colour_squares(
 }
 
 fn select_square(
-    input: Res<Input<MouseButton>>,
+    mut input: ResMut<Input<MouseButton>>,
     mut selected_square: ResMut<SelectedSquare>,
-    mut selected_piece: ResMut<SelectedPiece>,
+    selected_piece: Res<SelectedPiece>,
+    mut game_state: ResMut<State<GameState>>,
     pick_state: Query<&PickingCamera>,
     squares: Query<&Square>,
 ) {
@@ -147,27 +157,42 @@ fn select_square(
         return;
     }
 
-    if let Some((square_entity, _)) = pick_state.single().unwrap().intersect_top() {
+    input.reset(MouseButton::Left);
+
+    if let Some(square_entity) = selected_entity(pick_state) {
         if squares.get(square_entity).is_ok() {
             selected_square.0 = Some(square_entity);
         }
+
+        if selected_piece.0.is_some() {
+            game_state.set(GameState::TargetSquareSelected).unwrap();
+        } else {
+            game_state.set(GameState::SquareSelected).unwrap();
+        }
     } else {
-        selected_square.0 = None;
-        selected_piece.0 = None;
+        if *game_state.current() != GameState::NothingSelected {
+            game_state.set(GameState::NothingSelected).unwrap();
+        }
     };
 }
 
+fn selected_entity(pick_state: Query<&PickingCamera>) -> Option<Entity> {
+    if let Some((entity, _)) = pick_state.single().unwrap().intersect_top() {
+        Some(entity)
+    } else {
+        None
+    }
+}
+
 fn select_piece(
-    selected_square: Res<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
+    selected_square: Res<SelectedSquare>,
+    mut game_state: ResMut<State<GameState>>,
     turn: Res<PlayerTurn>,
     squares: Query<&Square>,
     pieces: Query<(Entity, &Piece)>,
 ) {
-    if !selected_square.is_changed() {
-        return;
-    }
-
+    // FIXME boilerplate
     let square = if let Some(entity) = selected_square.0 {
         if let Ok(square) = squares.get(entity) {
             square
@@ -178,12 +203,13 @@ fn select_piece(
         return;
     };
 
-    if selected_piece.0.is_none() {
-        pieces
-            .iter()
-            .find(|(_, piece)| piece.x == square.x && piece.y == square.y && piece.colour == turn.0)
-            .map(|(entity, _)| selected_piece.0 = Some(entity));
-    };
+    pieces
+        .iter()
+        .find(|(_, piece)| piece.x == square.x && piece.y == square.y && piece.colour == turn.0)
+        .map(|(entity, _)| {
+            selected_piece.0 = Some(entity);
+            game_state.set(GameState::PieceSelected).unwrap();
+        });
 }
 
 fn move_piece(
@@ -191,14 +217,10 @@ fn move_piece(
     selected_square: Res<SelectedSquare>,
     selected_piece: Res<SelectedPiece>,
     mut turn: ResMut<PlayerTurn>,
+    mut game_state: ResMut<State<GameState>>,
     squares: Query<&Square>,
     mut pieces: Query<(Entity, &mut Piece)>,
-    mut reset_selected_events: EventWriter<ResetSelected>,
 ) {
-    if !selected_square.is_changed() {
-        return;
-    }
-
     let square = if let Some(entity) = selected_square.0 {
         if let Ok(square) = squares.get(entity) {
             square
@@ -209,6 +231,7 @@ fn move_piece(
         return;
     };
 
+    // FIXME messy
     if let Some(piece) = selected_piece.0 {
         let piece_entities_copy = pieces
             .iter_mut()
@@ -236,22 +259,21 @@ fn move_piece(
             piece.x = square.x;
             piece.y = square.y;
 
+            // TODO don't change turn until movement completed
+            game_state.set(GameState::NothingSelected).unwrap();
             turn.next()
+        } else {
+            game_state.set(GameState::PieceSelected).unwrap();
         };
-
-        reset_selected_events.send(ResetSelected);
     }
 }
 
 fn reset_selected(
-    mut reader: EventReader<ResetSelected>,
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
 ) {
-    reader.iter().for_each(|_| {
-        selected_square.0 = None;
-        selected_piece.0 = None;
-    })
+    selected_square.0 = None;
+    selected_piece.0 = None;
 }
 
 fn despawn_taken_pieces(
@@ -261,6 +283,7 @@ fn despawn_taken_pieces(
 ) {
     query.for_each(|(entity, piece, _)| {
         if piece.kind == PieceKind::King {
+            // FIXME don't just exit
             println!(
                 "{} won",
                 match piece.colour {

@@ -1,3 +1,4 @@
+use bevy::input::system::exit_on_esc_system;
 use crate::board::BoardPlugin;
 use crate::pieces::PiecePlugin;
 use crate::ui::UiPlugin;
@@ -23,6 +24,7 @@ fn main() {
         .add_plugin(PiecePlugin)
         .add_plugin(UiPlugin)
         .add_startup_system(setup.system())
+        .add_system(exit_on_esc_system.system())
         .run();
 }
 
@@ -35,10 +37,10 @@ fn setup(mut commands: Commands) {
             )),
             ..Default::default()
         })
-        .insert_bundle(PickingCameraBundle::default())
-        .commands()
-        .spawn_bundle(LightBundle {
-            transform: Transform::from_translation(Vec3::new(4.0, 8.0, 4.0)),
-            ..Default::default()
-        });
+        .insert_bundle(PickingCameraBundle::default());
+
+    commands.spawn_bundle(LightBundle {
+        transform: Transform::from_translation(Vec3::new(4.0, 8.0, 4.0)),
+        ..Default::default()
+    });
 }

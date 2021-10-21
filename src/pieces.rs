@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 use bevy::prelude::*;
 
 pub struct PiecePlugin;
@@ -28,6 +29,19 @@ pub enum PieceKind {
 pub enum PieceColour {
     White,
     Black,
+}
+
+impl core::fmt::Display for PieceColour {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "{}",
+            match self {
+                PieceColour::White => "White",
+                PieceColour::Black => "Black",
+            }
+        )
+    }
 }
 
 impl Piece {
@@ -118,6 +132,7 @@ impl Piece {
 }
 
 const VELOCITY: f32 = 7.0;
+// TODO acceleration; y movement
 fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
     for (mut transform, piece) in query.iter_mut() {
         let direction = Vec3::new(piece.x as f32, 0.0, piece.y as f32) - transform.translation;
@@ -133,6 +148,7 @@ fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
     }
 }
 
+// TODO allow resetting
 fn create_pieces(
     mut commands: Commands,
     assets: Res<AssetServer>,
@@ -257,6 +273,7 @@ fn spawn_side(
     pawn: Handle<Mesh>,
     colour: PieceColour,
 ) {
+    // FIXME black pieces are backwards
     let back_row = if colour == PieceColour::White { 0 } else { 7 };
     let front_row = if colour == PieceColour::White { 1 } else { 6 };
 
