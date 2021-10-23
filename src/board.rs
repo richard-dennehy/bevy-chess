@@ -11,9 +11,11 @@ impl Plugin for BoardPlugin {
             .init_resource::<SelectedSquare>()
             .init_resource::<SelectedPiece>()
             .init_resource::<PlayerTurn>()
+            .add_event::<Reset>()
             .add_state(GameState::NothingSelected)
             .add_startup_system(create_board.system())
             .add_system(colour_squares.system())
+            .add_system(reset_game.system())
             .add_system_set(
                 SystemSet::on_enter(GameState::NothingSelected)
                     .with_system(reset_selected.system()),
@@ -51,6 +53,7 @@ impl Square {
 }
 
 struct Taken;
+pub struct Reset;
 
 #[derive(Default)]
 struct SelectedSquare(Option<Entity>);
@@ -209,7 +212,7 @@ fn select_piece(
         .map(|(entity, _)| {
             selected_piece.0 = Some(entity);
             game_state.set(GameState::PieceSelected).unwrap();
-        });
+        }).unwrap_or_else(|| game_state.set(GameState::NothingSelected).unwrap());
 }
 
 fn move_piece(
@@ -296,6 +299,22 @@ fn despawn_taken_pieces(
 
         commands.entity(entity).despawn_recursive();
     })
+}
+
+fn reset_game(
+    input: Res<Input<KeyCode>>,
+    mut reset_events: EventWriter<Reset>,
+    mut state: ResMut<State<GameState>>,
+    mut turn: ResMut<PlayerTurn>,
+) {
+    if input.just_pressed(KeyCode::R) {
+        if state.current() != &GameState::NothingSelected {
+            state.set(GameState::NothingSelected).unwrap();
+        }
+
+        turn.0 = PieceColour::White;
+        reset_events.send(Reset);
+    }
 }
 
 struct SquareMaterials {

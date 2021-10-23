@@ -1,11 +1,14 @@
+use std::f32::consts::{FRAC_PI_2, PI};
 use std::fmt::Formatter;
 use bevy::prelude::*;
+use crate::board::Reset;
 
 pub struct PiecePlugin;
 impl Plugin for PiecePlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_startup_system(create_pieces.system())
-            .add_system(move_pieces.system());
+            .add_system(move_pieces.system())
+            .add_system(reset_pieces.system());
     }
 }
 
@@ -148,7 +151,22 @@ fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
     }
 }
 
-// TODO allow resetting
+fn reset_pieces(
+    mut commands: Commands,
+    mut reset_events: EventReader<Reset>,
+    assets: Res<AssetServer>,
+    materials: ResMut<Assets<StandardMaterial>>,
+    pieces: Query<Entity, With<Piece>>,
+) {
+    // awkward way to consume all events (although there should only be 1 or 0) then reset pieces if
+    // there were any events received
+
+    if reset_events.iter().count() != 0 {
+        pieces.for_each(|entity| commands.entity(entity).despawn_recursive());
+        create_pieces(commands, assets, materials);
+    }
+}
+
 fn create_pieces(
     mut commands: Commands,
     assets: Res<AssetServer>,
@@ -340,7 +358,7 @@ fn spawn_king(
 ) {
     commands
         .spawn_bundle(PbrBundle {
-            transform: Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32)),
+            transform: place_on_square(colour, x, y),
             ..Default::default()
         })
         .insert(Piece {
@@ -384,7 +402,7 @@ fn spawn_knight(
 ) {
     commands
         .spawn_bundle(PbrBundle {
-            transform: Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32)),
+            transform: place_on_square(colour, x, y),
             ..Default::default()
         })
         .insert(Piece {
@@ -427,7 +445,7 @@ fn spawn_queen(
 ) {
     commands
         .spawn_bundle(PbrBundle {
-            transform: Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32)),
+            transform: place_on_square(colour, x, y),
             ..Default::default()
         })
         .insert(Piece {
@@ -459,7 +477,7 @@ fn spawn_bishop(
 ) {
     commands
         .spawn_bundle(PbrBundle {
-            transform: Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32)),
+            transform: place_on_square(colour, x, y),
             ..Default::default()
         })
         .insert(Piece {
@@ -473,8 +491,10 @@ fn spawn_bishop(
                 mesh: bishop,
                 material,
                 transform: {
+                    // FIXME wrong direction because of rotation (black side)
                     let mut transform = Transform::from_translation(Vec3::new(-0.1, 0.0, 0.0));
                     transform.apply_non_uniform_scale(Vec3::new(0.2, 0.2, 0.2));
+                    transform.rotate(Quat::from_rotation_y(-FRAC_PI_2));
                     transform
                 },
                 ..Default::default()
@@ -491,7 +511,7 @@ fn spawn_rook(
 ) {
     commands
         .spawn_bundle(PbrBundle {
-            transform: Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32)),
+            transform: place_on_square(colour, x, y),
             ..Default::default()
         })
         .insert(Piece {
@@ -523,7 +543,7 @@ fn spawn_pawn(
 ) {
     commands
         .spawn_bundle(PbrBundle {
-            transform: Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32)),
+            transform: place_on_square(colour, x, y),
             ..Default::default()
         })
         .insert(Piece {
@@ -544,4 +564,21 @@ fn spawn_pawn(
                 ..Default::default()
             });
         });
+}
+
+fn place_on_square(
+    colour: PieceColour,
+    x: u8,
+    y: u8,
+) -> Transform {
+    let angle = if colour == PieceColour::Black {
+        PI
+    } else {
+        0.0
+    };
+
+    let rotation = Transform::from_rotation(Quat::from_rotation_y(angle));
+    let translation = Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32));
+
+    translation * rotation
 }
