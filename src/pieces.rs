@@ -28,7 +28,7 @@ pub enum PieceKind {
     Rook,
     Pawn,
 }
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum PieceColour {
     White,
     Black,
@@ -36,7 +36,7 @@ pub enum PieceColour {
 
 impl core::fmt::Display for PieceColour {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(
+        write!(
             f,
             "{}",
             match self {

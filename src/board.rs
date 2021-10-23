@@ -1,5 +1,4 @@
 use crate::pieces::{Piece, PieceColour, PieceKind};
-use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
 use std::fmt::Formatter;
@@ -66,16 +65,19 @@ pub enum GameState {
     SquareSelected,
     PieceSelected,
     TargetSquareSelected,
+    Checkmate(PieceColour),
 }
 
 impl core::fmt::Display for GameState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             GameState::NothingSelected | GameState::SquareSelected => {
-                writeln!(f, "Select a piece to move")
+                write!(f, "Select a piece to move")
             }
-            GameState::PieceSelected => writeln!(f, "Select a target square"),
-            GameState::TargetSquareSelected => writeln!(f, "Moving piece to target square"),
+            GameState::PieceSelected => write!(f, "Select a target square"),
+            GameState::TargetSquareSelected => write!(f, "Moving piece to target square"),
+            // TODO should stop the game when the King is in checkmate, not when the King has been taken
+            GameState::Checkmate(colour) => write!(f, "{}'s King has been captured\nPress R to restart", colour),
         }
     }
 }
@@ -281,20 +283,13 @@ fn reset_selected(
 
 fn despawn_taken_pieces(
     mut commands: Commands,
-    mut exit_events: EventWriter<AppExit>,
+    mut state: ResMut<State<GameState>>,
+    turn: Res<PlayerTurn>,
     query: Query<(Entity, &Piece, &Taken)>,
 ) {
     query.for_each(|(entity, piece, _)| {
         if piece.kind == PieceKind::King {
-            // FIXME don't just exit
-            println!(
-                "{} won",
-                match piece.colour {
-                    PieceColour::White => "Black",
-                    PieceColour::Black => "White",
-                }
-            );
-            exit_events.send(AppExit);
+            state.set(GameState::Checkmate(turn.0)).unwrap();
         }
 
         commands.entity(entity).despawn_recursive();
