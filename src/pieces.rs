@@ -1,12 +1,14 @@
+use crate::board::Reset;
+use bevy::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::fmt::Formatter;
-use bevy::prelude::*;
-use crate::board::Reset;
 
 pub struct PiecePlugin;
 impl Plugin for PiecePlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_startup_system(create_pieces.system())
+        app.init_resource::<PieceMeshes>()
+            .init_resource::<PieceMaterials>()
+            .add_startup_system(create_pieces.system())
             .add_system(move_pieces.system())
             .add_system(reset_pieces.system());
     }
@@ -135,7 +137,7 @@ impl Piece {
 }
 
 const VELOCITY: f32 = 7.0;
-// TODO acceleration; y movement
+// TODO acceleration; y movement - Bezier curve maybe?
 fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
     for (mut transform, piece) in query.iter_mut() {
         let direction = Vec3::new(piece.x as f32, 0.0, piece.y as f32) - transform.translation;
@@ -154,8 +156,8 @@ fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
 fn reset_pieces(
     mut commands: Commands,
     mut reset_events: EventReader<Reset>,
-    assets: Res<AssetServer>,
-    materials: ResMut<Assets<StandardMaterial>>,
+    meshes: Res<PieceMeshes>,
+    materials: Res<PieceMaterials>,
     pieces: Query<Entity, With<Piece>>,
 ) {
     // awkward way to consume all events (although there should only be 1 or 0) then reset pieces if
@@ -163,51 +165,25 @@ fn reset_pieces(
 
     if reset_events.iter().count() != 0 {
         pieces.for_each(|entity| commands.entity(entity).despawn_recursive());
-        create_pieces(commands, assets, materials);
+        create_pieces(commands, meshes, materials);
     }
 }
 
 fn create_pieces(
     mut commands: Commands,
-    assets: Res<AssetServer>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    meshes: Res<PieceMeshes>,
+    materials: Res<PieceMaterials>,
 ) {
-    let king = assets.load("meshes/pieces.glb#Mesh0/Primitive0");
-    let king_cross = assets.load("meshes/pieces.glb#Mesh1/Primitive0");
-    let pawn = assets.load("meshes/pieces.glb#Mesh2/Primitive0");
-    let knight_base = assets.load("meshes/pieces.glb#Mesh3/Primitive0");
-    let knight = assets.load("meshes/pieces.glb#Mesh4/Primitive0");
-    let rook = assets.load("meshes/pieces.glb#Mesh5/Primitive0");
-    let bishop = assets.load("meshes/pieces.glb#Mesh6/Primitive0");
-    let queen = assets.load("meshes/pieces.glb#Mesh7/Primitive0");
-
-    let white = materials.add(Color::rgb(1.0, 0.8, 0.8).into());
-    let black = materials.add(Color::rgb(0.0, 0.2, 0.2).into());
-
     spawn_side(
         &mut commands,
-        white,
-        king.clone(),
-        king_cross.clone(),
-        knight_base.clone(),
-        knight.clone(),
-        queen.clone(),
-        bishop.clone(),
-        rook.clone(),
-        pawn.clone(),
+        &meshes,
+        materials.white.clone(),
         PieceColour::White,
     );
     spawn_side(
         &mut commands,
-        black,
-        king,
-        king_cross,
-        knight_base,
-        knight,
-        queen,
-        bishop,
-        rook,
-        pawn,
+        &meshes,
+        materials.black.clone(),
         PieceColour::Black,
     );
 }
@@ -280,68 +256,60 @@ fn square_colour((x, y): (u8, u8), pieces: &[Piece]) -> Option<PieceColour> {
 
 fn spawn_side(
     commands: &mut Commands,
+    meshes: &PieceMeshes,
     material: Handle<StandardMaterial>,
-    king: Handle<Mesh>,
-    king_cross: Handle<Mesh>,
-    knight_base: Handle<Mesh>,
-    knight: Handle<Mesh>,
-    queen: Handle<Mesh>,
-    bishop: Handle<Mesh>,
-    rook: Handle<Mesh>,
-    pawn: Handle<Mesh>,
     colour: PieceColour,
 ) {
-    // FIXME black pieces are backwards
     let back_row = if colour == PieceColour::White { 0 } else { 7 };
     let front_row = if colour == PieceColour::White { 1 } else { 6 };
 
     spawn_rook(
         commands,
         material.clone(),
-        rook.clone(),
+        meshes.rook.clone(),
         colour,
         (back_row, 0),
     );
     spawn_knight(
         commands,
         material.clone(),
-        knight_base.clone(),
-        knight.clone(),
+        meshes.knight_base.clone(),
+        meshes.knight.clone(),
         colour,
         (back_row, 1),
     );
     spawn_bishop(
         commands,
         material.clone(),
-        bishop.clone(),
+        meshes.bishop.clone(),
         colour,
         (back_row, 2),
     );
-    spawn_queen(commands, material.clone(), queen, colour, (back_row, 3));
+    spawn_queen(commands, material.clone(), meshes.queen.clone(), colour, (back_row, 3));
     spawn_king(
         commands,
         material.clone(),
-        king,
-        king_cross,
+        meshes.king.clone(),
+        meshes.king_cross.clone(),
         colour,
         (back_row, 4),
     );
-    spawn_bishop(commands, material.clone(), bishop, colour, (back_row, 5));
+    spawn_bishop(commands, material.clone(), meshes.bishop.clone(), colour, (back_row, 5));
     spawn_knight(
         commands,
         material.clone(),
-        knight_base,
-        knight,
+        meshes.knight_base.clone(),
+        meshes.knight.clone(),
         colour,
         (back_row, 6),
     );
-    spawn_rook(commands, material.clone(), rook, colour, (back_row, 7));
+    spawn_rook(commands, material.clone(), meshes.rook.clone(), colour, (back_row, 7));
 
     (0..=7).into_iter().for_each(|idx| {
         spawn_pawn(
             commands,
             material.clone(),
-            pawn.clone(),
+            meshes.pawn.clone(),
             colour,
             (front_row, idx),
         )
@@ -566,11 +534,7 @@ fn spawn_pawn(
         });
 }
 
-fn place_on_square(
-    colour: PieceColour,
-    x: u8,
-    y: u8,
-) -> Transform {
+fn place_on_square(colour: PieceColour, x: u8, y: u8) -> Transform {
     let angle = if colour == PieceColour::Black {
         PI
     } else {
@@ -581,4 +545,51 @@ fn place_on_square(
     let translation = Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32));
 
     translation * rotation
+}
+
+struct PieceMeshes {
+    king: Handle<Mesh>,
+    king_cross: Handle<Mesh>,
+    pawn: Handle<Mesh>,
+    knight_base: Handle<Mesh>,
+    knight: Handle<Mesh>,
+    rook: Handle<Mesh>,
+    bishop: Handle<Mesh>,
+    queen: Handle<Mesh>,
+}
+
+impl FromWorld for PieceMeshes {
+    fn from_world(world: &mut World) -> Self {
+        let assets = world.get_resource::<AssetServer>().unwrap();
+        Self {
+            king: assets.load("meshes/pieces.glb#Mesh0/Primitive0"),
+            king_cross: assets.load("meshes/pieces.glb#Mesh1/Primitive0"),
+            pawn: assets.load("meshes/pieces.glb#Mesh2/Primitive0"),
+            knight_base: assets.load("meshes/pieces.glb#Mesh3/Primitive0"),
+            knight: assets.load("meshes/pieces.glb#Mesh4/Primitive0"),
+            rook: assets.load("meshes/pieces.glb#Mesh5/Primitive0"),
+            bishop: assets.load("meshes/pieces.glb#Mesh6/Primitive0"),
+            queen: assets.load("meshes/pieces.glb#Mesh7/Primitive0"),
+        }
+    }
+}
+
+struct PieceMaterials {
+    white: Handle<StandardMaterial>,
+    black: Handle<StandardMaterial>,
+}
+
+impl FromWorld for PieceMaterials {
+    fn from_world(world: &mut World) -> Self {
+        let mut materials = world
+            .get_resource_mut::<Assets<StandardMaterial>>()
+            .unwrap();
+        let black = materials.add(Color::rgb(0.0, 0.2, 0.2).into());
+        let white = materials.add(Color::rgb(1.0, 0.8, 0.8).into());
+
+        Self {
+            white,
+            black
+        }
+    }
 }
