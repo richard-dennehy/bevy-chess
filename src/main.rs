@@ -9,6 +9,9 @@ mod board;
 mod pieces;
 mod ui;
 
+#[cfg(test)]
+mod tests;
+
 fn main() {
     App::build()
         .insert_resource(Msaa { samples: 4 })

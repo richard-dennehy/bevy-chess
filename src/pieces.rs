@@ -134,6 +134,66 @@ impl Piece {
             }
         }
     }
+
+    pub fn valid_moves(&self, _pieces: &[Piece]) -> Vec<(u8, u8)> {
+        let (x, y) = (self.x as i8, self.y as i8);
+
+        let is_on_board = |(x, y): (i8, i8)| {
+            ((0..8).contains(&x) && (0..8).contains(&y)).then(|| (x as u8, y as u8))
+        };
+
+        let diagonals = (-7..=7)
+            .filter(|adj| *adj != 0)
+            .flat_map(|adj| [(x + adj, y + adj), (x - adj, y + adj)].into_iter())
+            .filter_map(is_on_board);
+
+        let straight_lines = (-7..=7)
+            .filter(|adj| *adj != 0)
+            .map(|adj| (x + adj, y))
+            .chain((-7..=7).filter(|adj| *adj != 0).map(|adj| (x, y + adj)))
+            .filter_map(is_on_board);
+
+        match self.kind {
+            PieceKind::King => [
+                (x - 1, y - 1),
+                (x - 1, y),
+                (x - 1, y + 1),
+                (x, y - 1),
+                (x, y + 1),
+                (x + 1, y - 1),
+                (x + 1, y),
+                (x + 1, y + 1),
+            ].into_iter().filter_map(is_on_board).collect(),
+            PieceKind::Queen => diagonals.chain(straight_lines).collect(),
+            PieceKind::Bishop => diagonals.collect(),
+            PieceKind::Knight => [
+                (x - 2, y - 1),
+                (x - 2, y + 1),
+                (x + 2, y - 1),
+                (x + 2, y + 1),
+                (x - 1, y - 2),
+                (x - 1, y + 2),
+                (x + 1, y - 2),
+                (x + 1, y + 2),
+            ].into_iter().filter_map(is_on_board).collect(),
+            PieceKind::Rook => straight_lines.collect(),
+            // fixme need to pass all Pieces to check if diagonal is valid
+            PieceKind::Pawn if self.colour == PieceColour::White => if x == 1 {
+                vec![(x as u8 + 2, y as u8), (x as u8 + 1, y as u8)]
+            } else if x == 7 {
+                vec![]
+            } else {
+                vec![(x as u8 + 1, y as u8)]
+            },
+            PieceKind::Pawn /* Black */ => if x == 6 {
+                vec![(x as u8 - 2, y as u8), (x as u8 - 1, y as u8)]
+            } else if x == 0 {
+                vec![]
+            } else {
+                vec![(x as u8 - 1, y as u8)]
+            },
+        }
+    }
 }
 
 const VELOCITY: f32 = 7.0;
@@ -169,11 +229,7 @@ fn reset_pieces(
     }
 }
 
-fn create_pieces(
-    mut commands: Commands,
-    meshes: Res<PieceMeshes>,
-    materials: Res<PieceMaterials>,
-) {
+fn create_pieces(mut commands: Commands, meshes: Res<PieceMeshes>, materials: Res<PieceMaterials>) {
     spawn_side(
         &mut commands,
         &meshes,
@@ -285,7 +341,13 @@ fn spawn_side(
         colour,
         (back_row, 2),
     );
-    spawn_queen(commands, material.clone(), meshes.queen.clone(), colour, (back_row, 3));
+    spawn_queen(
+        commands,
+        material.clone(),
+        meshes.queen.clone(),
+        colour,
+        (back_row, 3),
+    );
     spawn_king(
         commands,
         material.clone(),
@@ -294,7 +356,13 @@ fn spawn_side(
         colour,
         (back_row, 4),
     );
-    spawn_bishop(commands, material.clone(), meshes.bishop.clone(), colour, (back_row, 5));
+    spawn_bishop(
+        commands,
+        material.clone(),
+        meshes.bishop.clone(),
+        colour,
+        (back_row, 5),
+    );
     spawn_knight(
         commands,
         material.clone(),
@@ -303,7 +371,13 @@ fn spawn_side(
         colour,
         (back_row, 6),
     );
-    spawn_rook(commands, material.clone(), meshes.rook.clone(), colour, (back_row, 7));
+    spawn_rook(
+        commands,
+        material.clone(),
+        meshes.rook.clone(),
+        colour,
+        (back_row, 7),
+    );
 
     (0..=7).into_iter().for_each(|idx| {
         spawn_pawn(
@@ -587,9 +661,6 @@ impl FromWorld for PieceMaterials {
         let black = materials.add(Color::rgb(0.0, 0.2, 0.2).into());
         let white = materials.add(Color::rgb(1.0, 0.8, 0.8).into());
 
-        Self {
-            white,
-            black
-        }
+        Self { white, black }
     }
 }

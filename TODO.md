@@ -1,0 +1,13 @@
+ - Add orbit camera (see https://github.com/bonsairobo/smooth-bevy-cameras)
+ - Fix general piece placement
+ - Fix black piece placement (adjustments appear to be backwards because of rotation)
+ - Highlight valid moves when piece selected
+ - Highlight pieces with valid moves
+ - Fancier piece movement (easing, y movement)
+ - Detect check/checkmate
+ - Prevent placing King in check
+ - Force king movement in check, end game on checkmate, end game on stalemate (no valid moves i.e. King not in check, but can't move)
+ - Castling
+ - En passant
+ - Pawn promotion
+ - Use UV for 2d coordinates instead of XY

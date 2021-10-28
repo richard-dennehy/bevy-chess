@@ -135,6 +135,8 @@ fn colour_squares(
     pick_state: Query<&PickingCamera>,
     mut query: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
 ) {
+    // TODO add `ValidPiece` marker and add Option<ValidPiece> to query, then highlight valid pieces
+
     let top_entity = selected_entity(pick_state);
 
     for (entity, square, mut material) in query.iter_mut() {
