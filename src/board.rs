@@ -40,6 +40,38 @@ impl Plugin for BoardPlugin {
     }
 }
 
+pub struct BoardState {
+    squares: [Option<PieceColour>; 64]
+}
+
+impl BoardState {
+    pub fn get(&self, x: u8, y: u8) -> &Option<PieceColour> {
+        &self.squares[(x * 8 + y) as usize]
+    }
+
+    #[cfg(test)]
+    pub fn squares(&self) -> &[Option<PieceColour>] {
+        &self.squares
+    }
+}
+
+impl From<&[Piece]> for BoardState {
+    fn from(pieces: &[Piece]) -> Self {
+        let mut squares = [None; 64];
+        pieces.iter().for_each(|piece| {
+            squares[(piece.x * 8 + piece.y) as usize] = Some(piece.colour);
+        });
+
+        Self { squares }
+    }
+}
+
+impl<const N: usize> From<[Piece; N]> for BoardState {
+    fn from(pieces: [Piece; N]) -> Self {
+        Self::from(&pieces[..])
+    }
+}
+
 struct Square {
     pub x: u8,
     pub y: u8,

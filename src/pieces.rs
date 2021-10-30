@@ -1,4 +1,4 @@
-use crate::board::Reset;
+use crate::board::{BoardState, Reset};
 use bevy::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::fmt::Formatter;
@@ -135,23 +135,31 @@ impl Piece {
         }
     }
 
-    pub fn valid_moves(&self, _pieces: &[Piece]) -> Vec<(u8, u8)> {
+    pub fn valid_moves(&self, board: &BoardState) -> Vec<(u8, u8)> {
         let (x, y) = (self.x as i8, self.y as i8);
 
         let is_on_board = |(x, y): (i8, i8)| {
             ((0..8).contains(&x) && (0..8).contains(&y)).then(|| (x as u8, y as u8))
         };
 
+        let path_clear = |(x, y): &(u8, u8)| self.path_empty((*x, *y), board);
+        let not_occupied_by_same_colour =
+            |(x, y): &(u8, u8)| board.get(*x, *y) != &Some(self.colour);
+
         let diagonals = (-7..=7)
             .filter(|adj| *adj != 0)
             .flat_map(|adj| [(x + adj, y + adj), (x - adj, y + adj)].into_iter())
-            .filter_map(is_on_board);
+            .filter_map(is_on_board)
+            .filter(not_occupied_by_same_colour)
+            .filter(path_clear);
 
         let straight_lines = (-7..=7)
             .filter(|adj| *adj != 0)
             .map(|adj| (x + adj, y))
             .chain((-7..=7).filter(|adj| *adj != 0).map(|adj| (x, y + adj)))
-            .filter_map(is_on_board);
+            .filter_map(is_on_board)
+            .filter(not_occupied_by_same_colour)
+            .filter(path_clear);
 
         match self.kind {
             PieceKind::King => [
@@ -163,7 +171,11 @@ impl Piece {
                 (x + 1, y - 1),
                 (x + 1, y),
                 (x + 1, y + 1),
-            ].into_iter().filter_map(is_on_board).collect(),
+            ]
+            .into_iter()
+            .filter_map(is_on_board)
+            .filter(not_occupied_by_same_colour)
+            .collect(),
             PieceKind::Queen => diagonals.chain(straight_lines).collect(),
             PieceKind::Bishop => diagonals.collect(),
             PieceKind::Knight => [
@@ -175,24 +187,80 @@ impl Piece {
                 (x - 1, y + 2),
                 (x + 1, y - 2),
                 (x + 1, y + 2),
-            ].into_iter().filter_map(is_on_board).collect(),
+            ]
+            .into_iter()
+            .filter_map(is_on_board)
+            .collect(),
             PieceKind::Rook => straight_lines.collect(),
-            // fixme need to pass all Pieces to check if diagonal is valid
-            PieceKind::Pawn if self.colour == PieceColour::White => if x == 1 {
-                vec![(x as u8 + 2, y as u8), (x as u8 + 1, y as u8)]
-            } else if x == 7 {
-                vec![]
-            } else {
-                vec![(x as u8 + 1, y as u8)]
-            },
-            PieceKind::Pawn /* Black */ => if x == 6 {
-                vec![(x as u8 - 2, y as u8), (x as u8 - 1, y as u8)]
-            } else if x == 0 {
-                vec![]
-            } else {
-                vec![(x as u8 - 1, y as u8)]
-            },
+            PieceKind::Pawn => {
+                let (starting_row, final_row, direction) = if self.colour == PieceColour::White {
+                    (1, 7, 1)
+                } else {
+                    (6, 0, -1)
+                };
+
+                if x == final_row {
+                    vec![]
+                } else {
+                    // todo check if diagonal is valid
+                    let move_one = (x + direction) as u8;
+                    let move_two = (x + (2 * direction)) as u8;
+                    let y = y as u8;
+
+                    if board.get(move_one, y).is_none() {
+                        if x == starting_row && board.get(move_two, y).is_none() {
+                            vec![(move_one, y), (move_two, y)]
+                        } else {
+                            vec![(move_one, y)]
+                        }
+                    } else {
+                        vec![]
+                    }
+                }
+            }
         }
+    }
+
+    fn path_empty(&self, to: (u8, u8), board: &BoardState) -> bool {
+        let (start_x, start_y) = (self.x, self.y);
+        let (end_x, end_y) = to;
+
+        // same column
+        if start_x == end_x {
+            return (start_y..end_y).skip(1).all(|y| board.get(start_x, y).is_none());
+        }
+
+        // same row
+        if start_y == end_y {
+            return (start_x..end_x).skip(1).all(|x| board.get(x, start_y).is_none());
+        }
+
+        let x_diff = (start_x as i8 - end_x as i8).abs();
+        let y_diff = (start_y as i8 - end_y as i8).abs();
+
+        // diagonal - this condition should always be true if it is reached
+        if x_diff == y_diff {
+            return (1..x_diff).all(|idx| {
+                let idx = idx as u8;
+                let (x, y) = if start_x < end_x && start_y < end_y {
+                    // bottom left -> top right
+                    (start_x + idx, start_y + idx)
+                } else if start_x < end_x {
+                    // top left -> bottom right
+                    (start_x + idx, start_y - idx)
+                } else if start_y < end_y {
+                    // bottom right -> top left
+                    (start_x - idx, start_y + idx)
+                } else {
+                    // top right -> bottom left
+                    (start_x - idx, start_y - idx)
+                };
+
+                board.get(x, y).is_none()
+            });
+        }
+
+        false
     }
 }
 
