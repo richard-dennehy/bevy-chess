@@ -1,3 +1,5 @@
+#![feature(option_result_contains)]
+
 use bevy::input::system::exit_on_esc_system;
 use crate::board::BoardPlugin;
 use crate::pieces::PiecePlugin;

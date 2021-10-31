@@ -190,6 +190,7 @@ impl Piece {
             ]
             .into_iter()
             .filter_map(is_on_board)
+            .filter(not_occupied_by_same_colour)
             .collect(),
             PieceKind::Rook => straight_lines.collect(),
             PieceKind::Pawn => {
@@ -202,20 +203,35 @@ impl Piece {
                 if x == final_row {
                     vec![]
                 } else {
-                    // todo check if diagonal is valid
+                    let mut moves = Vec::with_capacity(4);
+
                     let move_one = (x + direction) as u8;
                     let move_two = (x + (2 * direction)) as u8;
                     let y = y as u8;
 
                     if board.get(move_one, y).is_none() {
+                        moves.push((move_one, y));
+
                         if x == starting_row && board.get(move_two, y).is_none() {
-                            vec![(move_one, y), (move_two, y)]
-                        } else {
-                            vec![(move_one, y)]
+                            moves.push((move_two, y));
                         }
+                    };
+
+                    let opposite_colour = if self.colour == PieceColour::White {
+                        PieceColour::Black
                     } else {
-                        vec![]
-                    }
+                        PieceColour::White
+                    };
+
+                    if y != 7 && board.get(move_one, y + 1).contains(&opposite_colour) {
+                        moves.push((move_one, y + 1));
+                    };
+
+                    if y != 0 && board.get(move_one, y - 1).contains(&opposite_colour) {
+                        moves.push((move_one, y - 1));
+                    };
+
+                    moves
                 }
             }
         }
