@@ -1,6 +1,7 @@
 use crate::pieces::{Piece, PieceColour, PieceKind};
 use bevy::prelude::*;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
+use std::borrow::Borrow;
 use std::fmt::Formatter;
 
 pub struct BoardPlugin;
@@ -10,6 +11,7 @@ impl Plugin for BoardPlugin {
             .init_resource::<SelectedSquare>()
             .init_resource::<SelectedPiece>()
             .init_resource::<PlayerTurn>()
+            .init_resource::<ValidMoves>()
             .add_event::<Reset>()
             .add_state(GameState::NothingSelected)
             .add_startup_system(create_board.system())
@@ -27,6 +29,10 @@ impl Plugin for BoardPlugin {
                 SystemSet::on_update(GameState::SquareSelected).with_system(select_piece.system()),
             )
             .add_system_set(
+                SystemSet::on_enter(GameState::PieceSelected)
+                    .with_system(calculate_valid_moves.system()),
+            )
+            .add_system_set(
                 SystemSet::on_update(GameState::PieceSelected).with_system(select_square.system()),
             )
             .add_system_set(
@@ -40,8 +46,9 @@ impl Plugin for BoardPlugin {
     }
 }
 
+#[derive(Debug)]
 pub struct BoardState {
-    squares: [Option<PieceColour>; 64]
+    squares: [Option<PieceColour>; 64],
 }
 
 impl BoardState {
@@ -86,10 +93,13 @@ impl Square {
 struct Taken;
 pub struct Reset;
 
+// todo try tagging square/piece entity and using it as a query filter
 #[derive(Default)]
 struct SelectedSquare(Option<Entity>);
 #[derive(Default)]
 struct SelectedPiece(Option<Entity>);
+#[derive(Default)]
+struct ValidMoves(Vec<(u8, u8)>);
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum GameState {
@@ -109,7 +119,9 @@ impl core::fmt::Display for GameState {
             GameState::PieceSelected => write!(f, "Select a target square"),
             GameState::TargetSquareSelected => write!(f, "Moving piece to target square"),
             // TODO should stop the game when the King is in checkmate, not when the King has been taken
-            GameState::Checkmate(colour) => write!(f, "{}'s King has been captured\nPress R to restart", colour),
+            GameState::Checkmate(colour) => {
+                write!(f, "{}'s King has been captured\nPress R to restart", colour)
+            }
         }
     }
 }
@@ -163,12 +175,11 @@ fn create_board(
 
 fn colour_squares(
     selected_square: Res<SelectedSquare>,
+    valid_moves: Res<ValidMoves>,
     materials: Res<SquareMaterials>,
     pick_state: Query<&PickingCamera>,
     mut query: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
 ) {
-    // TODO add `ValidPiece` marker and add Option<ValidPiece> to query, then highlight valid pieces
-
     let top_entity = selected_entity(pick_state);
 
     for (entity, square, mut material) in query.iter_mut() {
@@ -176,6 +187,8 @@ fn colour_squares(
             materials.highlight.clone()
         } else if Some(entity) == selected_square.0 {
             materials.selected.clone()
+        } else if valid_moves.0.contains(&(square.x, square.y)) {
+            materials.highlight.clone()
         } else if square.is_white() {
             materials.white.clone()
         } else {
@@ -248,7 +261,29 @@ fn select_piece(
         .map(|(entity, _)| {
             selected_piece.0 = Some(entity);
             game_state.set(GameState::PieceSelected).unwrap();
-        }).unwrap_or_else(|| game_state.set(GameState::NothingSelected).unwrap());
+        })
+        .unwrap_or_else(|| game_state.set(GameState::NothingSelected).unwrap());
+}
+
+fn calculate_valid_moves(
+    mut valid_moves: ResMut<ValidMoves>,
+    selected_piece: Res<SelectedPiece>,
+    pieces: Query<&Piece>,
+) {
+    let piece = if let Some(entity) = selected_piece.0 {
+        if let Ok(piece) = pieces.get(entity) {
+            piece
+        } else {
+            return;
+        }
+    } else {
+        return;
+    };
+
+    let pieces = pieces.iter().cloned().collect::<Vec<_>>();
+    let moves = piece.valid_moves(&BoardState::from(pieces.borrow()));
+
+    valid_moves.0 = moves;
 }
 
 fn move_piece(
@@ -310,9 +345,11 @@ fn move_piece(
 fn reset_selected(
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
+    mut valid_moves: ResMut<ValidMoves>,
 ) {
     selected_square.0 = None;
     selected_piece.0 = None;
+    valid_moves.0 = vec![];
 }
 
 fn despawn_taken_pieces(

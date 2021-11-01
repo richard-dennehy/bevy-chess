@@ -241,14 +241,31 @@ impl Piece {
         let (start_x, start_y) = (self.x, self.y);
         let (end_x, end_y) = to;
 
+        let (start_y, end_y) = if start_y > end_y {
+            (end_y, start_y)
+        } else {
+            (start_y, end_y)
+        };
+
+        // todo test start >= end
         // same column
         if start_x == end_x {
-            return (start_y..end_y).skip(1).all(|y| board.get(start_x, y).is_none());
+            return (start_y..end_y)
+                .skip(1)
+                .all(|y| board.get(start_x, y).is_none());
         }
+
+        let (start_x, end_x) = if start_x > end_x {
+            (end_x, start_x)
+        } else {
+            (start_x, end_x)
+        };
 
         // same row
         if start_y == end_y {
-            return (start_x..end_x).skip(1).all(|x| board.get(x, start_y).is_none());
+            return (start_x..end_x)
+                .skip(1)
+                .all(|x| board.get(x, start_y).is_none());
         }
 
         let x_diff = (start_x as i8 - end_x as i8).abs();
