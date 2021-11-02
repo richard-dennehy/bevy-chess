@@ -290,45 +290,26 @@ fn move_piece(
     mut commands: Commands,
     selected_square: Res<SelectedSquare>,
     selected_piece: Res<SelectedPiece>,
+    valid_moves: Res<ValidMoves>,
     mut turn: ResMut<PlayerTurn>,
     mut game_state: ResMut<State<GameState>>,
     squares: Query<&Square>,
     mut pieces: Query<(Entity, &mut Piece)>,
 ) {
     let square = if let Some(entity) = selected_square.0 {
-        if let Ok(square) = squares.get(entity) {
-            square
-        } else {
-            return;
-        }
+        squares.get(entity).unwrap()
     } else {
         return;
     };
 
-    // FIXME messy
     if let Some(piece) = selected_piece.0 {
-        let piece_entities_copy = pieces
-            .iter_mut()
-            .map(|(entity, piece)| (entity, *piece))
-            .collect::<Vec<_>>();
-        let pieces_copy = pieces
-            .iter_mut()
-            .map(|(_, piece)| *piece)
-            .collect::<Vec<_>>();
-
-        let mut piece = if let Ok((_, piece)) = pieces.get_mut(piece) {
-            piece
-        } else {
-            return;
-        };
-
-        if piece.valid_move((square.x, square.y), &pieces_copy) {
-            piece_entities_copy
-                .into_iter()
-                .filter(|(_, other)| other.x == square.x && other.y == square.y)
+        if valid_moves.0.contains(&(square.x, square.y)) {
+            pieces.iter_mut().filter(|(_, other)| other.x == square.x && other.y == square.y)
                 .for_each(|(other_entity, _)| {
                     commands.entity(other_entity).insert(Taken);
                 });
+
+            let mut piece = pieces.get_mut(piece).unwrap().1;
 
             piece.x = square.x;
             piece.y = square.y;

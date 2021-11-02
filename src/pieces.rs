@@ -50,91 +50,6 @@ impl core::fmt::Display for PieceColour {
 }
 
 impl Piece {
-    pub fn valid_move(&self, new_position: (u8, u8), pieces: &[Piece]) -> bool {
-        let new_x = new_position.0 as i8;
-        let new_y = new_position.1 as i8;
-        let x = self.x as i8;
-        let y = self.y as i8;
-
-        if square_colour(new_position, pieces) == Some(self.colour) {
-            return false;
-        };
-
-        match self.kind {
-            PieceKind::King => {
-                // todo can probably simplify this
-                let valid_horizontal = (x - new_x).abs() == 1 && y == new_y;
-                let valid_vertical = (y - new_y).abs() == 1 && x == new_x;
-                let valid_diagonal = (x - new_x).abs() == 1 && (y - new_y).abs() == 1;
-
-                valid_horizontal || valid_vertical || valid_diagonal
-            }
-            PieceKind::Queen => {
-                let valid_diagonal = (x - new_x).abs() == (y - new_y).abs();
-                let valid_vertical = x == new_x && y != new_y;
-                let valid_horizontal = y == new_y && x != new_x;
-
-                path_empty((self.x, self.y), new_position, pieces)
-                    && (valid_diagonal || valid_vertical || valid_horizontal)
-            }
-            PieceKind::Bishop => {
-                path_empty((self.x, self.y), new_position, pieces)
-                    && (x - new_x).abs() == (y - new_y).abs()
-            }
-            PieceKind::Knight => {
-                let valid_horizontal = (x - new_x).abs() == 1 && (y - new_y).abs() == 2;
-                let valid_vertical = (y - new_y).abs() == 1 && (x - new_x).abs() == 2;
-
-                valid_horizontal || valid_vertical
-            }
-            PieceKind::Rook => {
-                let valid_vertical = x == new_x && y != new_y;
-                let valid_horizontal = y == new_y && x != new_x;
-
-                path_empty((self.x, self.y), new_position, pieces)
-                    && (valid_vertical || valid_horizontal)
-            }
-            PieceKind::Pawn if self.colour == PieceColour::White => {
-                if new_x - x == 1 && new_y == y {
-                    return square_colour(new_position, pieces).is_none();
-                }
-
-                if x == 1
-                    && new_x == 3
-                    && y == new_y
-                    && path_empty((self.x, self.y), new_position, pieces)
-                {
-                    return square_colour(new_position, pieces).is_none();
-                }
-
-                if new_x - x == 1 && (new_y - y).abs() == 1 {
-                    return square_colour(new_position, pieces) == Some(PieceColour::Black);
-                }
-
-                false
-            }
-            PieceKind::Pawn => {
-                if new_x - x == -1 && new_y == y {
-                    return square_colour(new_position, pieces).is_none();
-                }
-
-                if x == 6
-                    && new_x == 4
-                    && y == new_y
-                    && path_empty((self.x, self.y), new_position, pieces)
-                {
-                    return square_colour(new_position, pieces).is_none();
-                }
-
-                if new_x - x == -1 && (new_y - y).abs() == 1 {
-                    return square_colour(new_position, pieces) == Some(PieceColour::White);
-                }
-
-                false
-            }
-        }
-    }
-
     pub fn valid_moves(&self, board: &BoardState) -> Vec<(u8, u8)> {
         let (x, y) = (self.x as i8, self.y as i8);
 
@@ -247,7 +162,6 @@ impl Piece {
             (start_y, end_y)
         };
 
-        // todo test start >= end
         // same column
         if start_x == end_x {
             return (start_y..end_y)
@@ -343,72 +257,6 @@ fn create_pieces(mut commands: Commands, meshes: Res<PieceMeshes>, materials: Re
         materials.black.clone(),
         PieceColour::Black,
     );
-}
-
-fn path_empty(from: (u8, u8), to: (u8, u8), pieces: &[Piece]) -> bool {
-    let (start_x, start_y) = from;
-    let (end_x, end_y) = to;
-
-    // same column
-    if start_x == end_x {
-        return pieces
-            .iter()
-            .filter(|piece| piece.x == start_x)
-            .filter(|piece| piece.y != start_y && piece.y != end_y)
-            .all(|piece| {
-                // piece is after path ends
-                (piece.y > start_y && piece.y > end_y) ||
-                    // piece is before path starts
-                    (piece.y < start_y && piece.y < end_y)
-            });
-    };
-
-    // same row
-    if start_y == end_y {
-        return pieces
-            .iter()
-            .filter(|piece| piece.y == start_y)
-            .filter(|piece| piece.x != start_x && piece.x != end_x)
-            .all(|piece| {
-                // piece is after path ends
-                (piece.x > start_x && piece.x > end_x) ||
-                    // piece is before path starts
-                    (piece.x < start_x && piece.x < end_x)
-            });
-    }
-
-    let x_diff = (start_x as i8 - end_x as i8).abs();
-    let y_diff = (start_y as i8 - end_y as i8).abs();
-
-    // diagonal
-    if x_diff == y_diff {
-        return (1..x_diff).into_iter().all(|idx| {
-            let idx = idx as u8;
-            let (x, y) = if start_x < end_x && start_y < end_y {
-                // bottom left -> top right
-                (start_x + idx, start_y + idx)
-            } else if start_x < end_x {
-                // top left -> bottom right
-                (start_x + idx, start_y - idx)
-            } else if start_y < end_y {
-                // bottom right -> top left
-                (start_x - idx, start_y + idx)
-            } else {
-                // top right -> bottom left
-                (start_x - idx, start_y - idx)
-            };
-
-            square_colour((x, y), pieces).is_none()
-        });
-    }
-
-    true
-}
-
-fn square_colour((x, y): (u8, u8), pieces: &[Piece]) -> Option<PieceColour> {
-    pieces
-        .iter()
-        .find_map(|piece| (piece.x == x && piece.y == y).then(|| piece.colour))
 }
 
 fn spawn_side(

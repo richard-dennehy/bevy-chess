@@ -688,19 +688,20 @@ mod piece_tests {
                 x,
                 y,
             };
-            let rook = rook(1, 1);
-            let pieces = [rook, pawn(5, 1), pawn(1, 3)];
+            let rook = rook(4, 4);
+            let pieces = [rook, pawn(3, 4), pawn(4, 2)];
 
             let valid_moves = rook.valid_moves(&pieces.into());
             assert_eq!(
                 valid_moves,
                 vec![
-                    (0, 1),
-                    (2, 1),
-                    (3, 1),
-                    (4, 1),
-                    (1, 0),
-                    (1, 2),
+                    (5, 4),
+                    (6, 4),
+                    (7, 4),
+                    (4, 3),
+                    (4, 5),
+                    (4, 6),
+                    (4, 7),
                 ]
             );
         }
