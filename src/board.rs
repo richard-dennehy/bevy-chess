@@ -1,7 +1,6 @@
 use crate::pieces::{Piece, PieceColour, PieceKind};
 use bevy::prelude::*;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
-use std::borrow::Borrow;
 use std::fmt::Formatter;
 
 pub struct BoardPlugin;
@@ -64,18 +63,24 @@ impl BoardState {
 
 impl From<&[Piece]> for BoardState {
     fn from(pieces: &[Piece]) -> Self {
-        let mut squares = [None; 64];
-        pieces.iter().for_each(|piece| {
-            squares[(piece.x * 8 + piece.y) as usize] = Some(piece.colour);
-        });
-
-        Self { squares }
+        pieces.iter().collect()
     }
 }
 
 impl<const N: usize> From<[Piece; N]> for BoardState {
     fn from(pieces: [Piece; N]) -> Self {
         Self::from(&pieces[..])
+    }
+}
+
+impl<'piece> FromIterator<&'piece Piece> for BoardState {
+    fn from_iter<T: IntoIterator<Item = &'piece Piece>>(pieces: T) -> Self {
+        let mut squares = [None; 64];
+        pieces.into_iter().for_each(|piece| {
+            squares[(piece.x * 8 + piece.y) as usize] = Some(piece.colour);
+        });
+
+        Self { squares }
     }
 }
 
@@ -188,6 +193,7 @@ fn colour_squares(
         } else if Some(entity) == selected_square.0 {
             materials.selected.clone()
         } else if valid_moves.0.contains(&(square.x, square.y)) {
+            // todo this should be a different colour
             materials.highlight.clone()
         } else if square.is_white() {
             materials.white.clone()
@@ -244,13 +250,8 @@ fn select_piece(
     squares: Query<&Square>,
     pieces: Query<(Entity, &Piece)>,
 ) {
-    // FIXME boilerplate
     let square = if let Some(entity) = selected_square.0 {
-        if let Ok(square) = squares.get(entity) {
-            square
-        } else {
-            return;
-        }
+        squares.get(entity).unwrap()
     } else {
         return;
     };
@@ -271,17 +272,13 @@ fn calculate_valid_moves(
     pieces: Query<&Piece>,
 ) {
     let piece = if let Some(entity) = selected_piece.0 {
-        if let Ok(piece) = pieces.get(entity) {
-            piece
-        } else {
-            return;
-        }
+        pieces.get(entity).unwrap()
     } else {
         return;
     };
 
-    let pieces = pieces.iter().cloned().collect::<Vec<_>>();
-    let moves = piece.valid_moves(&BoardState::from(pieces.borrow()));
+    let board_state = pieces.iter().collect();
+    let moves = piece.valid_moves(&board_state);
 
     valid_moves.0 = moves;
 }
@@ -304,7 +301,9 @@ fn move_piece(
 
     if let Some(piece) = selected_piece.0 {
         if valid_moves.0.contains(&(square.x, square.y)) {
-            pieces.iter_mut().filter(|(_, other)| other.x == square.x && other.y == square.y)
+            pieces
+                .iter_mut()
+                .filter(|(_, other)| other.x == square.x && other.y == square.y)
                 .for_each(|(other_entity, _)| {
                     commands.entity(other_entity).insert(Taken);
                 });
@@ -318,7 +317,7 @@ fn move_piece(
             game_state.set(GameState::NothingSelected).unwrap();
             turn.next()
         } else {
-            game_state.set(GameState::PieceSelected).unwrap();
+            game_state.set(GameState::NothingSelected).unwrap();
         };
     }
 }

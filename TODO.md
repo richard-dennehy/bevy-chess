@@ -1,7 +1,6 @@
  - Add orbit camera (see https://github.com/bonsairobo/smooth-bevy-cameras)
  - Fix general piece placement
  - Fix black piece placement (adjustments appear to be backwards because of rotation)
- - Highlight valid moves when piece selected
  - Highlight pieces with valid moves
  - Fancier piece movement (easing, y movement)
  - Detect check/checkmate

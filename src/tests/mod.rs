@@ -481,6 +481,35 @@ mod piece_tests {
                 ]
             );
         }
+
+        #[test]
+        fn diagonal_movement_should_not_be_blocked_if_the_path_is_empty() {
+            let pawn = |x: u8, y: u8| Piece {
+                colour: PieceColour::Black,
+                kind: PieceKind::Pawn,
+                x,
+                y,
+            };
+            let queen = queen(7, 3);
+            let pieces = [
+                queen,
+                pawn(7, 2),
+                pawn(7, 4),
+                pawn(6, 3),
+                pawn(6, 2),
+                pawn(5, 4),
+                pawn(6, 5),
+                pawn(6, 6),
+            ];
+            let valid_moves = queen.valid_moves(&pieces.into());
+
+            assert_eq!(
+                valid_moves,
+                vec![
+                    (6, 4), (5, 5), (4, 6), (3, 7),
+                ]
+            );
+        }
     }
 
     mod valid_moves_of_a_bishop {
@@ -694,15 +723,7 @@ mod piece_tests {
             let valid_moves = rook.valid_moves(&pieces.into());
             assert_eq!(
                 valid_moves,
-                vec![
-                    (5, 4),
-                    (6, 4),
-                    (7, 4),
-                    (4, 3),
-                    (4, 5),
-                    (4, 6),
-                    (4, 7),
-                ]
+                vec![(5, 4), (6, 4), (7, 4), (4, 3), (4, 5), (4, 6), (4, 7),]
             );
         }
 

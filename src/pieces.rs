@@ -156,28 +156,28 @@ impl Piece {
         let (start_x, start_y) = (self.x, self.y);
         let (end_x, end_y) = to;
 
-        let (start_y, end_y) = if start_y > end_y {
-            (end_y, start_y)
-        } else {
-            (start_y, end_y)
-        };
-
         // same column
         if start_x == end_x {
-            return (start_y..end_y)
+            let range = if start_y > end_y {
+                end_y..start_y
+            } else {
+                start_y..end_y
+            };
+
+            return range
                 .skip(1)
                 .all(|y| board.get(start_x, y).is_none());
         }
 
-        let (start_x, end_x) = if start_x > end_x {
-            (end_x, start_x)
-        } else {
-            (start_x, end_x)
-        };
-
         // same row
         if start_y == end_y {
-            return (start_x..end_x)
+            let range = if start_x > end_x {
+                end_x..start_x
+            } else {
+                start_x..end_x
+            };
+
+            return range
                 .skip(1)
                 .all(|x| board.get(x, start_y).is_none());
         }
@@ -189,6 +189,7 @@ impl Piece {
         if x_diff == y_diff {
             return (1..x_diff).all(|idx| {
                 let idx = idx as u8;
+                // oops start_x is always < end_x and start_y is always < end_y
                 let (x, y) = if start_x < end_x && start_y < end_y {
                     // bottom left -> top right
                     (start_x + idx, start_y + idx)
