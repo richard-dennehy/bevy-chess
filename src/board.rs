@@ -1,5 +1,6 @@
 use crate::pieces::{Piece, PieceColour, PieceKind};
 use bevy::prelude::*;
+use bevy::utils::HashMap;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
 use std::fmt::Formatter;
 
@@ -10,15 +11,23 @@ impl Plugin for BoardPlugin {
             .init_resource::<SelectedSquare>()
             .init_resource::<SelectedPiece>()
             .init_resource::<PlayerTurn>()
-            .init_resource::<ValidMoves>()
+            .init_resource::<AllValidMoves>()
+            .init_resource::<Option<HighlightedSquare>>()
             .add_event::<Reset>()
             .add_state(GameState::NothingSelected)
             .add_startup_system(create_board.system())
-            .add_system(colour_squares.system())
+            .add_system(highlight_square_on_hover.system())
             .add_system(reset_game.system())
             .add_system_set(
                 SystemSet::on_enter(GameState::NothingSelected)
-                    .with_system(reset_selected.system()),
+                    .with_system(reset_selected.system().label("reset_selected"))
+                    .with_system(
+                        calculate_all_moves
+                            .system()
+                            .label("calculate_moves")
+                            .after("reset_selected"),
+                    )
+                    .with_system(colour_squares.system().after("calculate_moves")),
             )
             .add_system_set(
                 SystemSet::on_update(GameState::NothingSelected)
@@ -28,8 +37,7 @@ impl Plugin for BoardPlugin {
                 SystemSet::on_update(GameState::SquareSelected).with_system(select_piece.system()),
             )
             .add_system_set(
-                SystemSet::on_enter(GameState::PieceSelected)
-                    .with_system(calculate_valid_moves.system()),
+                SystemSet::on_enter(GameState::PieceSelected).with_system(colour_squares.system()),
             )
             .add_system_set(
                 SystemSet::on_update(GameState::PieceSelected).with_system(select_square.system()),
@@ -98,13 +106,18 @@ impl Square {
 struct Taken;
 pub struct Reset;
 
-// todo try tagging square/piece entity and using it as a query filter
 #[derive(Default)]
 struct SelectedSquare(Option<Entity>);
 #[derive(Default)]
 struct SelectedPiece(Option<Entity>);
+
 #[derive(Default)]
-struct ValidMoves(Vec<(u8, u8)>);
+struct AllValidMoves(HashMap<Entity, Vec<(u8, u8)>>);
+
+struct HighlightedSquare {
+    entity_id: Entity,
+    previous_material: Handle<StandardMaterial>,
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum GameState {
@@ -179,28 +192,87 @@ fn create_board(
 }
 
 fn colour_squares(
+    turn: Res<PlayerTurn>,
     selected_square: Res<SelectedSquare>,
-    valid_moves: Res<ValidMoves>,
+    valid_moves: Res<AllValidMoves>,
+    selected_piece: Res<SelectedPiece>,
     materials: Res<SquareMaterials>,
-    pick_state: Query<&PickingCamera>,
-    mut query: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
+    pieces: Query<(Entity, &Piece)>,
+    squares: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
 ) {
-    let top_entity = selected_entity(pick_state);
+    squares.for_each_mut(|(entity, square, mut material)| {
+        if selected_square.0.contains(&entity) {
+            *material = materials.selected.clone();
+            return;
+        };
 
-    for (entity, square, mut material) in query.iter_mut() {
-        *material = if top_entity == Some(entity) {
-            materials.highlight.clone()
-        } else if Some(entity) == selected_square.0 {
-            materials.selected.clone()
-        } else if valid_moves.0.contains(&(square.x, square.y)) {
-            // todo this should be a different colour
-            materials.highlight.clone()
-        } else if square.is_white() {
+        if let Some(piece) = selected_piece.0 {
+            let valid_moves = valid_moves
+                .0
+                .get(&piece)
+                .expect("all pieces should have moves calculated");
+
+            if valid_moves.contains(&(square.x, square.y)) {
+                *material = materials.valid_selection.clone();
+                return;
+            };
+        } else {
+            let piece = pieces.iter().find(|(_, piece)| {
+                piece.x == square.x && piece.y == square.y && piece.colour == turn.0
+            });
+
+            if let Some((entity, _)) = piece {
+                let valid_moves = valid_moves
+                    .0
+                    .get(&entity)
+                    .expect("all pieces should have moves calculated");
+
+                if !valid_moves.is_empty() {
+                    *material = materials.valid_selection.clone();
+                    return;
+                }
+            }
+        };
+
+        *material = if square.is_white() {
             materials.white.clone()
         } else {
             materials.black.clone()
+        };
+    });
+}
+
+fn highlight_square_on_hover(
+    materials: Res<SquareMaterials>,
+    mut previous_highlighted_square: ResMut<Option<HighlightedSquare>>,
+    pick_state: Query<&PickingCamera>,
+    mut squares: Query<&mut Handle<StandardMaterial>, With<Square>>,
+) {
+    if let Some(previous) = &*previous_highlighted_square {
+        let mut material = squares.get_mut(previous.entity_id).unwrap();
+        *material = previous.previous_material.clone();
+    };
+
+    if let Some(top_entity) = selected_entity(pick_state) {
+        if let Ok(mut material) = squares.get_mut(top_entity) {
+            *previous_highlighted_square = Some(HighlightedSquare {
+                entity_id: top_entity,
+                previous_material: material.clone(),
+            });
+
+            *material = materials.highlight.clone();
         }
-    }
+    };
+}
+
+fn calculate_all_moves(mut all_moves: ResMut<AllValidMoves>, pieces: Query<(Entity, &Piece)>) {
+    let board_state = pieces.iter().map(|(_, piece)| piece).collect();
+
+    // note: this calculates all potential moves for both sides - this makes it easier to check for check(mate)
+    pieces.iter().for_each(|(entity, piece)| {
+        let valid_moves = piece.valid_moves(&board_state);
+        let _ = all_moves.0.insert(entity, valid_moves);
+    });
 }
 
 fn select_square(
@@ -266,28 +338,11 @@ fn select_piece(
         .unwrap_or_else(|| game_state.set(GameState::NothingSelected).unwrap());
 }
 
-fn calculate_valid_moves(
-    mut valid_moves: ResMut<ValidMoves>,
-    selected_piece: Res<SelectedPiece>,
-    pieces: Query<&Piece>,
-) {
-    let piece = if let Some(entity) = selected_piece.0 {
-        pieces.get(entity).unwrap()
-    } else {
-        return;
-    };
-
-    let board_state = pieces.iter().collect();
-    let moves = piece.valid_moves(&board_state);
-
-    valid_moves.0 = moves;
-}
-
 fn move_piece(
     mut commands: Commands,
     selected_square: Res<SelectedSquare>,
     selected_piece: Res<SelectedPiece>,
-    valid_moves: Res<ValidMoves>,
+    all_valid_moves: Res<AllValidMoves>,
     mut turn: ResMut<PlayerTurn>,
     mut game_state: ResMut<State<GameState>>,
     squares: Query<&Square>,
@@ -300,7 +355,11 @@ fn move_piece(
     };
 
     if let Some(piece) = selected_piece.0 {
-        if valid_moves.0.contains(&(square.x, square.y)) {
+        let valid_moves = all_valid_moves
+            .0
+            .get(&piece)
+            .expect("all pieces should have moves calculated");
+        if valid_moves.contains(&(square.x, square.y)) {
             pieces
                 .iter_mut()
                 .filter(|(_, other)| other.x == square.x && other.y == square.y)
@@ -325,11 +384,11 @@ fn move_piece(
 fn reset_selected(
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
-    mut valid_moves: ResMut<ValidMoves>,
+    mut valid_moves: ResMut<AllValidMoves>,
 ) {
     selected_square.0 = None;
     selected_piece.0 = None;
-    valid_moves.0 = vec![];
+    valid_moves.0.clear();
 }
 
 fn despawn_taken_pieces(
@@ -366,6 +425,7 @@ fn reset_game(
 struct SquareMaterials {
     highlight: Handle<StandardMaterial>,
     selected: Handle<StandardMaterial>,
+    valid_selection: Handle<StandardMaterial>,
     black: Handle<StandardMaterial>,
     white: Handle<StandardMaterial>,
 }
@@ -378,6 +438,7 @@ impl FromWorld for SquareMaterials {
         SquareMaterials {
             highlight: materials.add(Color::rgb(0.8, 0.3, 0.3).into()),
             selected: materials.add(Color::rgb(0.9, 0.1, 0.1).into()),
+            valid_selection: materials.add(Color::rgb(0.4, 0.4, 0.9).into()),
             black: materials.add(Color::rgb(0.0, 0.1, 0.1).into()),
             white: materials.add(Color::rgb(1.0, 0.9, 0.9).into()),
         }

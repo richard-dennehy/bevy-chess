@@ -189,7 +189,6 @@ impl Piece {
         if x_diff == y_diff {
             return (1..x_diff).all(|idx| {
                 let idx = idx as u8;
-                // oops start_x is always < end_x and start_y is always < end_y
                 let (x, y) = if start_x < end_x && start_y < end_y {
                     // bottom left -> top right
                     (start_x + idx, start_y + idx)
