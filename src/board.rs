@@ -114,6 +114,11 @@ struct SelectedPiece(Option<Entity>);
 #[derive(Default)]
 struct AllValidMoves(HashMap<Entity, Vec<(u8, u8)>>);
 
+pub struct MovePiece {
+    pub target_x: f32,
+    pub target_y: f32,
+}
+
 struct HighlightedSquare {
     entity_id: Entity,
     previous_material: Handle<StandardMaterial>,
@@ -125,6 +130,7 @@ pub enum GameState {
     SquareSelected,
     PieceSelected,
     TargetSquareSelected,
+    MovingPiece,
     Checkmate(PieceColour),
 }
 
@@ -135,7 +141,7 @@ impl core::fmt::Display for GameState {
                 write!(f, "Select a piece to move")
             }
             GameState::PieceSelected => write!(f, "Select a target square"),
-            GameState::TargetSquareSelected => write!(f, "Moving piece to target square"),
+            GameState::TargetSquareSelected | GameState::MovingPiece => write!(f, "Moving piece to target square"),
             // TODO should stop the game when the King is in checkmate, not when the King has been taken
             GameState::Checkmate(colour) => {
                 write!(f, "{}'s King has been captured\nPress R to restart", colour)
@@ -343,7 +349,6 @@ fn move_piece(
     selected_square: Res<SelectedSquare>,
     selected_piece: Res<SelectedPiece>,
     all_valid_moves: Res<AllValidMoves>,
-    mut turn: ResMut<PlayerTurn>,
     mut game_state: ResMut<State<GameState>>,
     squares: Query<&Square>,
     mut pieces: Query<(Entity, &mut Piece)>,
@@ -367,14 +372,12 @@ fn move_piece(
                     commands.entity(other_entity).insert(Taken);
                 });
 
-            let mut piece = pieces.get_mut(piece).unwrap().1;
+            commands.entity(piece).insert(MovePiece {
+                target_x: square.x as f32,
+                target_y: square.y as f32,
+            });
 
-            piece.x = square.x;
-            piece.y = square.y;
-
-            // TODO don't change turn until movement completed
-            game_state.set(GameState::NothingSelected).unwrap();
-            turn.next()
+            game_state.set(GameState::MovingPiece).unwrap();
         } else {
             game_state.set(GameState::NothingSelected).unwrap();
         };
@@ -385,10 +388,12 @@ fn reset_selected(
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
     mut valid_moves: ResMut<AllValidMoves>,
+    mut highlighted: ResMut<Option<HighlightedSquare>>,
 ) {
     selected_square.0 = None;
     selected_piece.0 = None;
     valid_moves.0.clear();
+    *highlighted = None;
 }
 
 fn despawn_taken_pieces(

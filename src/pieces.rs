@@ -1,4 +1,4 @@
-use crate::board::{BoardState, Reset};
+use crate::board::{BoardState, GameState, MovePiece, PlayerTurn, Reset};
 use bevy::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::fmt::Formatter;
@@ -9,7 +9,9 @@ impl Plugin for PiecePlugin {
         app.init_resource::<PieceMeshes>()
             .init_resource::<PieceMaterials>()
             .add_startup_system(create_pieces.system())
-            .add_system(move_pieces.system())
+            .add_system_set(
+                SystemSet::on_update(GameState::MovingPiece).with_system(move_pieces.system()),
+            )
             .add_system(reset_pieces.system());
     }
 }
@@ -164,9 +166,7 @@ impl Piece {
                 start_y..end_y
             };
 
-            return range
-                .skip(1)
-                .all(|y| board.get(start_x, y).is_none());
+            return range.skip(1).all(|y| board.get(start_x, y).is_none());
         }
 
         // same row
@@ -177,9 +177,7 @@ impl Piece {
                 start_x..end_x
             };
 
-            return range
-                .skip(1)
-                .all(|x| board.get(x, start_y).is_none());
+            return range.skip(1).all(|x| board.get(x, start_y).is_none());
         }
 
         let x_diff = (start_x as i8 - end_x as i8).abs();
@@ -213,9 +211,15 @@ impl Piece {
 
 const VELOCITY: f32 = 7.0;
 // TODO acceleration; y movement - Bezier curve maybe?
-fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
-    for (mut transform, piece) in query.iter_mut() {
-        let direction = Vec3::new(piece.x as f32, 0.0, piece.y as f32) - transform.translation;
+fn move_pieces(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut state: ResMut<State<GameState>>,
+    mut turn: ResMut<PlayerTurn>,
+    query: Query<(Entity, &MovePiece, &mut Piece, &mut Transform)>,
+) {
+    query.for_each_mut(|(piece_entity, move_piece, mut piece, mut transform)| {
+        let direction = Vec3::new(move_piece.target_x, 0.0, move_piece.target_y) - transform.translation;
 
         if direction.length() > f32::EPSILON * 2.0 {
             let delta = VELOCITY * (direction.normalize() * time.delta_seconds());
@@ -224,8 +228,15 @@ fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
             } else {
                 transform.translation += delta;
             }
+        } else {
+            piece.x = move_piece.target_x as u8;
+            piece.y = move_piece.target_y as u8;
+
+            commands.entity(piece_entity).remove::<MovePiece>();
+            turn.next();
+            state.set(GameState::NothingSelected).unwrap();
         }
-    }
+    });
 }
 
 fn reset_pieces(
