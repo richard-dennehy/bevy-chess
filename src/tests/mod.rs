@@ -62,6 +62,200 @@ mod board_tests {
             .collect::<Vec<_>>();
         assert_eq!(BoardState::from(&pieces[..]).squares(), &expected);
     }
+
+    mod checking_for_check {
+        use super::*;
+        use crate::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn};
+        use bevy::prelude::*;
+
+        fn setup() -> (World, SystemStage) {
+            let mut world = World::new();
+
+            world.insert_resource(AllValidMoves::default());
+            world.insert_resource(PlayerTurn(PieceColour::Black));
+            world.insert_resource(State::new(GameState::NothingSelected));
+
+            let mut update_stage = SystemStage::parallel();
+            update_stage.add_system_set(State::<GameState>::get_driver());
+            update_stage.add_system(calculate_all_moves.system());
+
+            (world, update_stage)
+        }
+
+        #[test]
+        fn should_not_allow_a_king_to_remain_in_check_if_it_can_move() {
+            let (mut world, mut update_stage) = setup();
+
+            let king_id = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
+
+            // knight has king in check
+            world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::White,
+                x: 5,
+                y: 3,
+            });
+
+            // add other pieces around King to restrict (but not totally block) movement that can't take the knight,
+            // to verify that even though they can move, they aren't selectable while the king is in check
+            let rook_id = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 5,
+                })
+                .id();
+
+            let knight_id = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Knight,
+                    colour: PieceColour::Black,
+                    x: 6,
+                    y: 3,
+                })
+                .id();
+
+            let queen_id = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Queen,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 3,
+                })
+                .id();
+
+            update_stage.run(&mut world);
+            let valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+
+            assert_eq!(valid_moves.0.get(&king_id).unwrap(), &vec![(6, 4), (6, 5)]);
+            assert_eq!(valid_moves.0.get(&rook_id).unwrap(), &vec![]);
+            assert_eq!(valid_moves.0.get(&knight_id).unwrap(), &vec![]);
+            assert_eq!(valid_moves.0.get(&queen_id).unwrap(), &vec![]);
+        }
+
+        #[test]
+        fn should_detect_checkmate_when_the_king_cannot_move_and_the_opposing_piece_cannot_be_taken_or_blocked(
+        ) {
+            let (mut world, mut update_stage) = setup();
+            let mut ids = vec![];
+
+            ids.push(
+                world
+                    .spawn()
+                    .insert(Piece {
+                        kind: PieceKind::King,
+                        colour: PieceColour::Black,
+                        x: 7,
+                        y: 4,
+                    })
+                    .id(),
+            );
+
+            // knight has king in check
+            world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::White,
+                x: 5,
+                y: 3,
+            });
+
+            // pieces blocking the king but tragically unable to take the knight
+            let mut spawn_pawn = |x: u8, y: u8| {
+                ids.push(world.spawn().insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x,
+                    y,
+                }).id());
+            };
+
+            spawn_pawn(7, 3);
+            spawn_pawn(6, 3);
+            spawn_pawn(7, 5);
+            spawn_pawn(6, 5);
+
+            // can't place pawn here or it would be able to take the knight
+            ids.push(world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 6,
+                y: 4,
+            }).id());
+
+            update_stage.run(&mut world);
+
+            // todo this may be needed but is awkward to manually test at the moment
+            // let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            // ids.into_iter().for_each(|id| assert!(all_valid_moves.0.get(&id).unwrap().is_empty(), "{:?}, {:?}", world.get_entity(id).unwrap().get::<Piece>(), all_valid_moves.0.get(&id)));
+
+            let game_state = world.get_resource::<State<GameState>>().unwrap();
+            assert_eq!(game_state.current(), &GameState::Checkmate(PieceColour::Black));
+        }
+
+        #[test]
+        fn should_not_detect_checkmate_if_the_king_cannot_move_but_the_opposing_piece_can_be_taken() {
+            let (mut world, mut update_stage) = setup();
+            let mut ids = vec![];
+
+            ids.push(
+                world
+                    .spawn()
+                    .insert(Piece {
+                        kind: PieceKind::King,
+                        colour: PieceColour::Black,
+                        x: 7,
+                        y: 4,
+                    })
+                    .id(),
+            );
+
+            // knight has king in check
+            world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::White,
+                x: 5,
+                y: 3,
+            });
+
+            let mut spawn_pawn = |x: u8, y: u8| {
+                world.spawn().insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x,
+                    y,
+                }).id()
+            };
+
+            ids.push(spawn_pawn(7, 3));
+            ids.push(spawn_pawn(6, 3));
+            ids.push(spawn_pawn(7, 5));
+            ids.push(spawn_pawn(6, 5));
+
+            let pawn_id = spawn_pawn(6, 4);
+
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            ids.into_iter().for_each(|id| assert!(all_valid_moves.0.get(&id).unwrap().is_empty()));
+
+            assert_eq!(all_valid_moves.0.get(&pawn_id).unwrap(), &vec![(5, 3)]);
+
+            let game_state = world.get_resource::<State<GameState>>().unwrap();
+            assert_eq!(game_state.current(), &GameState::NothingSelected);
+        }
+    }
 }
 
 mod piece_tests {
@@ -503,12 +697,7 @@ mod piece_tests {
             ];
             let valid_moves = queen.valid_moves(&pieces.into());
 
-            assert_eq!(
-                valid_moves,
-                vec![
-                    (6, 4), (5, 5), (4, 6), (3, 7),
-                ]
-            );
+            assert_eq!(valid_moves, vec![(6, 4), (5, 5), (4, 6), (3, 7),]);
         }
     }
 

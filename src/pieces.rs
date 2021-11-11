@@ -1,4 +1,4 @@
-use crate::board::{BoardState, GameState, MovePiece, PlayerTurn, Reset};
+use crate::board::{BoardState, GameState, MovePiece, PlayerTurn};
 use bevy::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::fmt::Formatter;
@@ -10,9 +10,11 @@ impl Plugin for PiecePlugin {
             .init_resource::<PieceMaterials>()
             .add_startup_system(create_pieces.system())
             .add_system_set(
-                SystemSet::on_update(GameState::MovingPiece).with_system(move_pieces.system()),
+                SystemSet::on_update(GameState::NewGame).with_system(reset_pieces.system()),
             )
-            .add_system(reset_pieces.system());
+            .add_system_set(
+                SystemSet::on_update(GameState::MovingPiece).with_system(move_pieces.system()),
+            );
     }
 }
 
@@ -36,6 +38,15 @@ pub enum PieceKind {
 pub enum PieceColour {
     White,
     Black,
+}
+
+impl PieceColour {
+    pub fn opposite(&self) -> Self {
+        match self {
+            PieceColour::White => PieceColour::Black,
+            PieceColour::Black => PieceColour::White,
+        }
+    }
 }
 
 impl core::fmt::Display for PieceColour {
@@ -219,7 +230,8 @@ fn move_pieces(
     query: Query<(Entity, &MovePiece, &mut Piece, &mut Transform)>,
 ) {
     query.for_each_mut(|(piece_entity, move_piece, mut piece, mut transform)| {
-        let direction = Vec3::new(move_piece.target_x, 0.0, move_piece.target_y) - transform.translation;
+        let direction =
+            Vec3::new(move_piece.target_x, 0.0, move_piece.target_y) - transform.translation;
 
         if direction.length() > f32::EPSILON * 2.0 {
             let delta = VELOCITY * (direction.normalize() * time.delta_seconds());
@@ -241,18 +253,12 @@ fn move_pieces(
 
 fn reset_pieces(
     mut commands: Commands,
-    mut reset_events: EventReader<Reset>,
     meshes: Res<PieceMeshes>,
     materials: Res<PieceMaterials>,
     pieces: Query<Entity, With<Piece>>,
 ) {
-    // awkward way to consume all events (although there should only be 1 or 0) then reset pieces if
-    // there were any events received
-
-    if reset_events.iter().count() != 0 {
-        pieces.for_each(|entity| commands.entity(entity).despawn_recursive());
-        create_pieces(commands, meshes, materials);
-    }
+    pieces.for_each(|entity| commands.entity(entity).despawn_recursive());
+    create_pieces(commands, meshes, materials);
 }
 
 fn create_pieces(mut commands: Commands, meshes: Res<PieceMeshes>, materials: Res<PieceMaterials>) {

@@ -13,11 +13,13 @@ impl Plugin for BoardPlugin {
             .init_resource::<PlayerTurn>()
             .init_resource::<AllValidMoves>()
             .init_resource::<Option<HighlightedSquare>>()
-            .add_event::<Reset>()
-            .add_state(GameState::NothingSelected)
+            .add_state(GameState::NewGame)
             .add_startup_system(create_board.system())
             .add_system(highlight_square_on_hover.system())
-            .add_system(reset_game.system())
+            .add_system(restart_game.system())
+            .add_system_set(
+                SystemSet::on_update(GameState::NewGame).with_system(start_new_game.system()),
+            )
             .add_system_set(
                 SystemSet::on_enter(GameState::NothingSelected)
                     .with_system(reset_selected.system().label("reset_selected"))
@@ -104,15 +106,15 @@ impl Square {
 }
 
 struct Taken;
-pub struct Reset;
 
 #[derive(Default)]
 struct SelectedSquare(Option<Entity>);
 #[derive(Default)]
 struct SelectedPiece(Option<Entity>);
 
+// todo add impl for e.g. getting Entity moves (handle unwrapping Option)
 #[derive(Default)]
-struct AllValidMoves(HashMap<Entity, Vec<(u8, u8)>>);
+pub struct AllValidMoves(pub HashMap<Entity, Vec<(u8, u8)>>);
 
 pub struct MovePiece {
     pub target_x: f32,
@@ -126,6 +128,9 @@ struct HighlightedSquare {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum GameState {
+    // only exists to guarantee the "new turn" systems always run after resetting everything
+    NewGame,
+    // todo should split this into once-per-turn state and actual "Nothing selected" state
     NothingSelected,
     SquareSelected,
     PieceSelected,
@@ -137,14 +142,16 @@ pub enum GameState {
 impl core::fmt::Display for GameState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            GameState::NothingSelected | GameState::SquareSelected => {
+            GameState::NewGame | GameState::NothingSelected | GameState::SquareSelected => {
                 write!(f, "Select a piece to move")
             }
             GameState::PieceSelected => write!(f, "Select a target square"),
-            GameState::TargetSquareSelected | GameState::MovingPiece => write!(f, "Moving piece to target square"),
+            GameState::TargetSquareSelected | GameState::MovingPiece => {
+                write!(f, "Moving piece to target square")
+            }
             // TODO should stop the game when the King is in checkmate, not when the King has been taken
             GameState::Checkmate(colour) => {
-                write!(f, "{}'s King has been captured\nPress R to restart", colour)
+                write!(f, "{}'s King is in checkmate\nPress R to restart", colour)
             }
         }
     }
@@ -160,10 +167,7 @@ impl Default for PlayerTurn {
 
 impl PlayerTurn {
     pub fn next(&mut self) {
-        self.0 = match self.0 {
-            PieceColour::White => PieceColour::Black,
-            PieceColour::Black => PieceColour::White,
-        }
+        self.0 = self.0.opposite()
     }
 }
 
@@ -197,6 +201,7 @@ fn create_board(
         .collect()
 }
 
+// fixme this is highlighting the selected piece as well as its valid moves
 fn colour_squares(
     turn: Res<PlayerTurn>,
     selected_square: Res<SelectedSquare>,
@@ -271,7 +276,12 @@ fn highlight_square_on_hover(
     };
 }
 
-fn calculate_all_moves(mut all_moves: ResMut<AllValidMoves>, pieces: Query<(Entity, &Piece)>) {
+pub fn calculate_all_moves(
+    player_turn: Res<PlayerTurn>,
+    mut all_moves: ResMut<AllValidMoves>,
+    game_state: ResMut<State<GameState>>,
+    pieces: Query<(Entity, &Piece)>,
+) {
     let board_state = pieces.iter().map(|(_, piece)| piece).collect();
 
     // note: this calculates all potential moves for both sides - this makes it easier to check for check(mate)
@@ -279,6 +289,96 @@ fn calculate_all_moves(mut all_moves: ResMut<AllValidMoves>, pieces: Query<(Enti
         let valid_moves = piece.valid_moves(&board_state);
         let _ = all_moves.0.insert(entity, valid_moves);
     });
+
+    check_check(player_turn, all_moves, game_state, pieces);
+}
+
+fn check_check(
+    player_turn: Res<PlayerTurn>,
+    mut all_moves: ResMut<AllValidMoves>,
+    mut game_state: ResMut<State<GameState>>,
+    pieces: Query<(Entity, &Piece)>,
+) {
+    let (player_pieces, opposite_pieces): (Vec<_>, Vec<_>) = pieces
+        .iter()
+        .partition(|(_, piece)| piece.colour == player_turn.0);
+
+    let (king_entity, king) = player_pieces
+        .iter()
+        .find(|(_, piece)| piece.colour == player_turn.0 && piece.kind == PieceKind::King)
+        .expect("there should always be 2 kings");
+
+    let entities_threatening_king = all_moves
+        .0
+        .iter()
+        // find opposite colour pieces that will be able to take the king next turn
+        .filter_map(|(entity, moves)| moves.contains(&(king.x, king.y)).then(|| entity))
+        .collect::<Vec<_>>();
+
+    // todo filter out moves that would leave the king in check
+
+    if !entities_threatening_king.is_empty() {
+        let counter_moves: Vec<(Entity, Vec<(u8, u8)>)> = std::iter::once(
+            all_moves
+                .0
+                .get(&king_entity)
+                .expect("all pieces should have moves calculated"),
+        )
+        .map(|moves| (*king_entity, moves.clone()))
+        .chain(
+            player_pieces
+                .iter()
+                .filter(|(entity, _)| entity != king_entity)
+                .map(|(entity, _)| {
+                    let moves = all_moves
+                        .0
+                        .get(entity)
+                        .expect("all pieces should have moves calculated");
+                    let counter_moves = moves
+                        .iter()
+                        .filter(|(x, y)| {
+                            entities_threatening_king.iter().all(|opposite_entity| {
+                                let opposite_piece = opposite_pieces
+                                    .iter()
+                                    .find_map(|(entity, piece)| {
+                                        (entity == *opposite_entity).then(|| piece)
+                                    })
+                                    .unwrap();
+                                // todo check for path obstruction
+                                opposite_piece.x == *x && opposite_piece.y == *y
+                            })
+                        })
+                        .copied()
+                        .collect::<Vec<_>>();
+
+                    (*entity, counter_moves)
+                }),
+        )
+        .collect();
+
+        if counter_moves.iter().all(|(_, moves)| moves.is_empty()) {
+            game_state.set(GameState::Checkmate(player_turn.0)).unwrap();
+        } else {
+            counter_moves.into_iter().for_each(|(entity, moves)| {
+                let _ = all_moves.0.insert(entity, moves);
+            })
+        }
+    }
+
+    // for each valid move of King:
+    //   - for each piece of opposite colour:
+    //     - check if valid moves contains potential position
+    //     - filter these out of valid moves
+
+    // for each piece of opposite colour:
+    //   - check if valid moves contains King position
+    //   - check if _same_ colour pieces can take that piece
+    //   - check if _same_ colour pieces can block that piece
+
+    // ensure valid moves only contains safe King moves or counter-check moves
+    // if multiple pieces have King in check, ensure all of these are blocked (is that even possible?)
+
+    // ensure moving a piece does not leave the king in check
 }
 
 fn select_square(
@@ -411,20 +511,16 @@ fn despawn_taken_pieces(
     })
 }
 
-fn reset_game(
-    input: Res<Input<KeyCode>>,
-    mut reset_events: EventWriter<Reset>,
-    mut state: ResMut<State<GameState>>,
-    mut turn: ResMut<PlayerTurn>,
-) {
+fn restart_game(input: Res<Input<KeyCode>>, mut state: ResMut<State<GameState>>) {
     if input.just_pressed(KeyCode::R) {
-        if state.current() != &GameState::NothingSelected {
-            state.set(GameState::NothingSelected).unwrap();
-        }
-
-        turn.0 = PieceColour::White;
-        reset_events.send(Reset);
+        state.set(GameState::NewGame).unwrap();
     }
+}
+
+fn start_new_game(mut game_state: ResMut<State<GameState>>, mut turn: ResMut<PlayerTurn>) {
+    turn.0 = PieceColour::White;
+
+    game_state.set(GameState::NothingSelected).unwrap();
 }
 
 struct SquareMaterials {
