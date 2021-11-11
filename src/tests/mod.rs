@@ -139,7 +139,7 @@ mod board_tests {
             update_stage.run(&mut world);
             let valid_moves = world.get_resource::<AllValidMoves>().unwrap();
 
-            assert_eq!(valid_moves.0.get(&king_id).unwrap(), &vec![(6, 4), (6, 5)]);
+            assert_eq!(valid_moves.0.get(&king_id).unwrap(), &vec![(6, 4)]);
             assert_eq!(valid_moves.0.get(&rook_id).unwrap(), &vec![]);
             assert_eq!(valid_moves.0.get(&knight_id).unwrap(), &vec![]);
             assert_eq!(valid_moves.0.get(&queen_id).unwrap(), &vec![]);
@@ -254,6 +254,142 @@ mod board_tests {
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(game_state.current(), &GameState::NothingSelected);
+        }
+
+        #[test]
+        fn should_detect_checkmate_if_multiple_pieces_have_the_king_in_check() {
+            let (mut world, mut update_stage) = setup();
+            let mut ids = vec![];
+
+            ids.push(
+                world
+                    .spawn()
+                    .insert(Piece {
+                        kind: PieceKind::King,
+                        colour: PieceColour::Black,
+                        x: 7,
+                        y: 4,
+                    })
+                    .id(),
+            );
+
+            // knight has king in check
+            world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::White,
+                x: 5,
+                y: 3,
+            });
+
+            // also has king in check
+            world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::White,
+                x: 5,
+                y: 5,
+            });
+
+            let mut spawn_pawn = |x: u8, y: u8| {
+                world.spawn().insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x,
+                    y,
+                }).id()
+            };
+
+            ids.push(spawn_pawn(7, 3));
+            ids.push(spawn_pawn(6, 3));
+            ids.push(spawn_pawn(7, 5));
+            ids.push(spawn_pawn(6, 5));
+            ids.push(spawn_pawn(6, 4));
+
+            update_stage.run(&mut world);
+
+            // let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            // ids.into_iter().for_each(|id| assert!(all_valid_moves.0.get(&id).unwrap().is_empty()));
+
+            let game_state = world.get_resource::<State<GameState>>().unwrap();
+            assert_eq!(game_state.current(), &GameState::Checkmate(PieceColour::Black));
+        }
+
+        #[test]
+        fn should_not_allow_the_king_to_move_into_check() {
+            let (mut world, mut update_stage) = setup();
+
+            let king_id = world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 0,
+                y: 3,
+            });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 0,
+                y: 5,
+            });
+
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.0.get(&king_id).unwrap(), &vec![(6, 4)]);
+        }
+
+        #[test]
+        fn should_detect_checkmate_if_the_king_is_in_check_and_cannot_move_out_of_check() {
+            let (mut world, mut update_stage) = setup();
+            let mut ids = vec![];
+
+            ids.push(
+                world
+                    .spawn()
+                    .insert(Piece {
+                        kind: PieceKind::King,
+                        colour: PieceColour::Black,
+                        x: 7,
+                        y: 4,
+                    })
+                    .id(),
+            );
+
+            // bishop has king in check
+            world.spawn().insert(Piece {
+                kind: PieceKind::Bishop,
+                colour: PieceColour::White,
+                x: 5,
+                y: 2,
+            });
+
+            let mut spawn_pawn = |x: u8, y: u8| {
+                ids.push(world.spawn().insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x,
+                    y,
+                }).id());
+            };
+
+            spawn_pawn(7, 3);
+            spawn_pawn(7, 5);
+            spawn_pawn(6, 5);
+            spawn_pawn(6, 4);
+
+            update_stage.run(&mut world);
+
+            // let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            // ids.into_iter().for_each(|id| assert!(all_valid_moves.0.get(&id).unwrap().is_empty(), "{:?}, {:?}", world.get_entity(id).unwrap().get::<Piece>(), all_valid_moves.0.get(&id)));
+
+            let game_state = world.get_resource::<State<GameState>>().unwrap();
+            assert_eq!(game_state.current(), &GameState::Checkmate(PieceColour::Black));
         }
     }
 }

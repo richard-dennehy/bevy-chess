@@ -316,45 +316,52 @@ fn check_check(
         .collect::<Vec<_>>();
 
     // todo filter out moves that would leave the king in check
+    let safe_king_moves = all_moves
+        .0
+        .get(&king_entity)
+        .unwrap()
+        .into_iter()
+        .filter(|(x, y)| {
+            !opposite_pieces
+                .iter()
+                .any(|(entity, _)| all_moves.0.get(entity).unwrap().contains(&(*x, *y)))
+        })
+        .copied()
+        .collect::<Vec<_>>();
 
     if !entities_threatening_king.is_empty() {
-        let counter_moves: Vec<(Entity, Vec<(u8, u8)>)> = std::iter::once(
-            all_moves
-                .0
-                .get(&king_entity)
-                .expect("all pieces should have moves calculated"),
-        )
-        .map(|moves| (*king_entity, moves.clone()))
-        .chain(
-            player_pieces
-                .iter()
-                .filter(|(entity, _)| entity != king_entity)
-                .map(|(entity, _)| {
-                    let moves = all_moves
-                        .0
-                        .get(entity)
-                        .expect("all pieces should have moves calculated");
-                    let counter_moves = moves
+        let counter_moves: Vec<(Entity, Vec<(u8, u8)>)> =
+            std::iter::once((*king_entity, safe_king_moves))
+                .chain(
+                    player_pieces
                         .iter()
-                        .filter(|(x, y)| {
-                            entities_threatening_king.iter().all(|opposite_entity| {
-                                let opposite_piece = opposite_pieces
-                                    .iter()
-                                    .find_map(|(entity, piece)| {
-                                        (entity == *opposite_entity).then(|| piece)
+                        .filter(|(entity, _)| entity != king_entity)
+                        .map(|(entity, _)| {
+                            let moves = all_moves
+                                .0
+                                .get(entity)
+                                .expect("all pieces should have moves calculated");
+                            let counter_moves = moves
+                                .iter()
+                                .filter(|(x, y)| {
+                                    entities_threatening_king.iter().all(|opposite_entity| {
+                                        let opposite_piece = opposite_pieces
+                                            .iter()
+                                            .find_map(|(entity, piece)| {
+                                                (entity == *opposite_entity).then(|| piece)
+                                            })
+                                            .unwrap();
+                                        // todo check for path obstruction
+                                        opposite_piece.x == *x && opposite_piece.y == *y
                                     })
-                                    .unwrap();
-                                // todo check for path obstruction
-                                opposite_piece.x == *x && opposite_piece.y == *y
-                            })
-                        })
-                        .copied()
-                        .collect::<Vec<_>>();
+                                })
+                                .copied()
+                                .collect::<Vec<_>>();
 
-                    (*entity, counter_moves)
-                }),
-        )
-        .collect();
+                            (*entity, counter_moves)
+                        }),
+                )
+                .collect();
 
         if counter_moves.iter().all(|(_, moves)| moves.is_empty()) {
             game_state.set(GameState::Checkmate(player_turn.0)).unwrap();
@@ -363,6 +370,8 @@ fn check_check(
                 let _ = all_moves.0.insert(entity, moves);
             })
         }
+    } else {
+        let _ = all_moves.0.insert(*king_entity, safe_king_moves);
     }
 
     // for each valid move of King:
