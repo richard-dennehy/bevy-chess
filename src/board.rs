@@ -112,9 +112,20 @@ struct SelectedSquare(Option<Entity>);
 #[derive(Default)]
 struct SelectedPiece(Option<Entity>);
 
-// todo add impl for e.g. getting Entity moves (handle unwrapping Option)
 #[derive(Default)]
-pub struct AllValidMoves(pub HashMap<Entity, Vec<(u8, u8)>>);
+pub struct AllValidMoves(HashMap<Entity, Vec<(u8, u8)>>);
+
+impl AllValidMoves {
+    pub fn get(&self, piece_id: Entity) -> &Vec<(u8, u8)> {
+        self.0
+            .get(&piece_id)
+            .expect("all pieces should have moves calculated")
+    }
+
+    pub fn insert(&mut self, piece_id: Entity, moves: Vec<(u8, u8)>) {
+        self.0.insert(piece_id, moves);
+    }
+}
 
 pub struct MovePiece {
     pub target_x: f32,
@@ -149,7 +160,6 @@ impl core::fmt::Display for GameState {
             GameState::TargetSquareSelected | GameState::MovingPiece => {
                 write!(f, "Moving piece to target square")
             }
-            // TODO should stop the game when the King is in checkmate, not when the King has been taken
             GameState::Checkmate(colour) => {
                 write!(f, "{}'s King is in checkmate\nPress R to restart", colour)
             }
@@ -218,10 +228,7 @@ fn colour_squares(
         };
 
         if let Some(piece) = selected_piece.0 {
-            let valid_moves = valid_moves
-                .0
-                .get(&piece)
-                .expect("all pieces should have moves calculated");
+            let valid_moves = valid_moves.get(piece);
 
             if valid_moves.contains(&(square.x, square.y)) {
                 *material = materials.valid_selection.clone();
@@ -233,10 +240,7 @@ fn colour_squares(
             });
 
             if let Some((entity, _)) = piece {
-                let valid_moves = valid_moves
-                    .0
-                    .get(&entity)
-                    .expect("all pieces should have moves calculated");
+                let valid_moves = valid_moves.get(entity);
 
                 if !valid_moves.is_empty() {
                     *material = materials.valid_selection.clone();
@@ -287,7 +291,7 @@ pub fn calculate_all_moves(
     // note: this calculates all potential moves for both sides - this makes it easier to check for check(mate)
     pieces.iter().for_each(|(entity, piece)| {
         let valid_moves = piece.valid_moves(&board_state);
-        let _ = all_moves.0.insert(entity, valid_moves);
+        let _ = all_moves.insert(entity, valid_moves);
     });
 
     check_check(player_turn, all_moves, game_state, pieces);
@@ -317,14 +321,12 @@ fn check_check(
 
     // todo filter out moves that would leave the king in check
     let safe_king_moves = all_moves
-        .0
-        .get(&king_entity)
-        .unwrap()
+        .get(*king_entity)
         .into_iter()
         .filter(|(x, y)| {
             !opposite_pieces
                 .iter()
-                .any(|(entity, _)| all_moves.0.get(entity).unwrap().contains(&(*x, *y)))
+                .any(|(entity, _)| all_moves.get(*entity).contains(&(*x, *y)))
         })
         .copied()
         .collect::<Vec<_>>();
@@ -337,10 +339,7 @@ fn check_check(
                         .iter()
                         .filter(|(entity, _)| entity != king_entity)
                         .map(|(entity, _)| {
-                            let moves = all_moves
-                                .0
-                                .get(entity)
-                                .expect("all pieces should have moves calculated");
+                            let moves = all_moves.get(*entity);
                             let counter_moves = moves
                                 .iter()
                                 .filter(|(x, y)| {
@@ -365,13 +364,13 @@ fn check_check(
 
         if counter_moves.iter().all(|(_, moves)| moves.is_empty()) {
             game_state.set(GameState::Checkmate(player_turn.0)).unwrap();
-        } else {
-            counter_moves.into_iter().for_each(|(entity, moves)| {
-                let _ = all_moves.0.insert(entity, moves);
-            })
         }
+
+        counter_moves.into_iter().for_each(|(entity, moves)| {
+            let _ = all_moves.insert(entity, moves);
+        });
     } else {
-        let _ = all_moves.0.insert(*king_entity, safe_king_moves);
+        let _ = all_moves.insert(*king_entity, safe_king_moves);
     }
 
     // for each valid move of King:
@@ -469,10 +468,7 @@ fn move_piece(
     };
 
     if let Some(piece) = selected_piece.0 {
-        let valid_moves = all_valid_moves
-            .0
-            .get(&piece)
-            .expect("all pieces should have moves calculated");
+        let valid_moves = all_valid_moves.get(piece);
         if valid_moves.contains(&(square.x, square.y)) {
             pieces
                 .iter_mut()

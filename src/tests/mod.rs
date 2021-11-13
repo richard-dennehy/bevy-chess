@@ -139,10 +139,10 @@ mod board_tests {
             update_stage.run(&mut world);
             let valid_moves = world.get_resource::<AllValidMoves>().unwrap();
 
-            assert_eq!(valid_moves.0.get(&king_id).unwrap(), &vec![(6, 4)]);
-            assert_eq!(valid_moves.0.get(&rook_id).unwrap(), &vec![]);
-            assert_eq!(valid_moves.0.get(&knight_id).unwrap(), &vec![]);
-            assert_eq!(valid_moves.0.get(&queen_id).unwrap(), &vec![]);
+            assert_eq!(valid_moves.get(king_id), &vec![(6, 4)]);
+            assert_eq!(valid_moves.get(rook_id), &vec![]);
+            assert_eq!(valid_moves.get(knight_id), &vec![]);
+            assert_eq!(valid_moves.get(queen_id), &vec![]);
         }
 
         #[test]
@@ -173,12 +173,17 @@ mod board_tests {
 
             // pieces blocking the king but tragically unable to take the knight
             let mut spawn_pawn = |x: u8, y: u8| {
-                ids.push(world.spawn().insert(Piece {
-                    kind: PieceKind::Pawn,
-                    colour: PieceColour::Black,
-                    x,
-                    y,
-                }).id());
+                ids.push(
+                    world
+                        .spawn()
+                        .insert(Piece {
+                            kind: PieceKind::Pawn,
+                            colour: PieceColour::Black,
+                            x,
+                            y,
+                        })
+                        .id(),
+                );
             };
 
             spawn_pawn(7, 3);
@@ -187,25 +192,40 @@ mod board_tests {
             spawn_pawn(6, 5);
 
             // can't place pawn here or it would be able to take the knight
-            ids.push(world.spawn().insert(Piece {
-                kind: PieceKind::Rook,
-                colour: PieceColour::Black,
-                x: 6,
-                y: 4,
-            }).id());
+            ids.push(
+                world
+                    .spawn()
+                    .insert(Piece {
+                        kind: PieceKind::Rook,
+                        colour: PieceColour::Black,
+                        x: 6,
+                        y: 4,
+                    })
+                    .id(),
+            );
 
             update_stage.run(&mut world);
 
-            // todo this may be needed but is awkward to manually test at the moment
-            // let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            // ids.into_iter().for_each(|id| assert!(all_valid_moves.0.get(&id).unwrap().is_empty(), "{:?}, {:?}", world.get_entity(id).unwrap().get::<Piece>(), all_valid_moves.0.get(&id)));
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            ids.into_iter().for_each(|id| {
+                assert!(
+                    all_valid_moves.get(id).is_empty(),
+                    "{:?}, {:?}",
+                    world.get_entity(id).unwrap().get::<Piece>(),
+                    all_valid_moves.get(id)
+                )
+            });
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
-            assert_eq!(game_state.current(), &GameState::Checkmate(PieceColour::Black));
+            assert_eq!(
+                game_state.current(),
+                &GameState::Checkmate(PieceColour::Black)
+            );
         }
 
         #[test]
-        fn should_not_detect_checkmate_if_the_king_cannot_move_but_the_opposing_piece_can_be_taken() {
+        fn should_not_detect_checkmate_if_the_king_cannot_move_but_the_opposing_piece_can_be_taken()
+        {
             let (mut world, mut update_stage) = setup();
             let mut ids = vec![];
 
@@ -230,12 +250,15 @@ mod board_tests {
             });
 
             let mut spawn_pawn = |x: u8, y: u8| {
-                world.spawn().insert(Piece {
-                    kind: PieceKind::Pawn,
-                    colour: PieceColour::Black,
-                    x,
-                    y,
-                }).id()
+                world
+                    .spawn()
+                    .insert(Piece {
+                        kind: PieceKind::Pawn,
+                        colour: PieceColour::Black,
+                        x,
+                        y,
+                    })
+                    .id()
             };
 
             ids.push(spawn_pawn(7, 3));
@@ -248,9 +271,10 @@ mod board_tests {
             update_stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            ids.into_iter().for_each(|id| assert!(all_valid_moves.0.get(&id).unwrap().is_empty()));
+            ids.into_iter()
+                .for_each(|id| assert!(all_valid_moves.get(id).is_empty()));
 
-            assert_eq!(all_valid_moves.0.get(&pawn_id).unwrap(), &vec![(5, 3)]);
+            assert_eq!(all_valid_moves.get(pawn_id), &vec![(5, 3)]);
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(game_state.current(), &GameState::NothingSelected);
@@ -290,12 +314,15 @@ mod board_tests {
             });
 
             let mut spawn_pawn = |x: u8, y: u8| {
-                world.spawn().insert(Piece {
-                    kind: PieceKind::Pawn,
-                    colour: PieceColour::Black,
-                    x,
-                    y,
-                }).id()
+                world
+                    .spawn()
+                    .insert(Piece {
+                        kind: PieceKind::Pawn,
+                        colour: PieceColour::Black,
+                        x,
+                        y,
+                    })
+                    .id()
             };
 
             ids.push(spawn_pawn(7, 3));
@@ -306,23 +333,30 @@ mod board_tests {
 
             update_stage.run(&mut world);
 
-            // let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            // ids.into_iter().for_each(|id| assert!(all_valid_moves.0.get(&id).unwrap().is_empty()));
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            ids.into_iter()
+                .for_each(|id| assert!(all_valid_moves.get(id).is_empty()));
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
-            assert_eq!(game_state.current(), &GameState::Checkmate(PieceColour::Black));
+            assert_eq!(
+                game_state.current(),
+                &GameState::Checkmate(PieceColour::Black)
+            );
         }
 
         #[test]
         fn should_not_allow_the_king_to_move_into_check() {
             let (mut world, mut update_stage) = setup();
 
-            let king_id = world.spawn().insert(Piece {
-                kind: PieceKind::King,
-                colour: PieceColour::Black,
-                x: 7,
-                y: 4,
-            }).id();
+            let king_id = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
@@ -341,7 +375,7 @@ mod board_tests {
             update_stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.0.get(&king_id).unwrap(), &vec![(6, 4)]);
+            assert_eq!(all_valid_moves.get(king_id), &vec![(6, 4)]);
         }
 
         #[test]
@@ -370,26 +404,113 @@ mod board_tests {
             });
 
             let mut spawn_pawn = |x: u8, y: u8| {
-                ids.push(world.spawn().insert(Piece {
-                    kind: PieceKind::Pawn,
-                    colour: PieceColour::Black,
-                    x,
-                    y,
-                }).id());
+                ids.push(
+                    world
+                        .spawn()
+                        .insert(Piece {
+                            kind: PieceKind::Pawn,
+                            colour: PieceColour::Black,
+                            x,
+                            y,
+                        })
+                        .id(),
+                );
             };
 
-            spawn_pawn(7, 3);
             spawn_pawn(7, 5);
             spawn_pawn(6, 5);
             spawn_pawn(6, 4);
 
+            ids.push(
+                world
+                    .spawn()
+                    .insert(Piece {
+                        kind: PieceKind::Bishop,
+                        colour: PieceColour::Black,
+                        x: 7,
+                        y: 3,
+                    })
+                    .id(),
+            );
+
             update_stage.run(&mut world);
 
-            // let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            // ids.into_iter().for_each(|id| assert!(all_valid_moves.0.get(&id).unwrap().is_empty(), "{:?}, {:?}", world.get_entity(id).unwrap().get::<Piece>(), all_valid_moves.0.get(&id)));
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            ids.into_iter().for_each(|id| {
+                assert!(
+                    all_valid_moves.get(id).is_empty(),
+                    "{:?}, {:?}",
+                    world.get_entity(id).unwrap().get::<Piece>(),
+                    all_valid_moves.get(id)
+                )
+            });
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
-            assert_eq!(game_state.current(), &GameState::Checkmate(PieceColour::Black));
+            assert_eq!(
+                game_state.current(),
+                &GameState::Checkmate(PieceColour::Black)
+            );
+        }
+
+        #[test]
+        fn should_not_detect_checkmate_if_a_piece_can_be_moved_to_block_check() {
+            let (mut world, mut update_stage) = setup();
+            let mut ids = vec![];
+
+            ids.push(
+                world
+                    .spawn()
+                    .insert(Piece {
+                        kind: PieceKind::King,
+                        colour: PieceColour::Black,
+                        x: 7,
+                        y: 4,
+                    })
+                    .id(),
+            );
+
+            // bishop has king in check
+            world.spawn().insert(Piece {
+                kind: PieceKind::Bishop,
+                colour: PieceColour::White,
+                x: 5,
+                y: 2,
+            });
+
+            let mut spawn_pawn = |x: u8, y: u8| {
+                world
+                    .spawn()
+                    .insert(Piece {
+                        kind: PieceKind::Pawn,
+                        colour: PieceColour::Black,
+                        x,
+                        y,
+                    })
+                    .id()
+            };
+
+            ids.push(spawn_pawn(7, 5));
+            ids.push(spawn_pawn(6, 5));
+            ids.push(spawn_pawn(6, 4));
+
+            let blocking_pawn = spawn_pawn(7, 3);
+
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            ids.into_iter().for_each(|id| {
+                assert!(
+                    all_valid_moves.get(id).is_empty(),
+                    "{:?}, {:?}",
+                    world.get_entity(id).unwrap().get::<Piece>(),
+                    all_valid_moves.get(id)
+                )
+            });
+
+            assert_eq!(all_valid_moves.get(blocking_pawn), &vec![(6, 3)]);
+
+            let game_state = world.get_resource::<State<GameState>>().unwrap();
+            assert_eq!(game_state.current(), &GameState::NothingSelected);
         }
     }
 }
@@ -1077,6 +1198,287 @@ mod piece_tests {
                     (1, 3),
                 ]
             );
+        }
+    }
+
+    mod calculating_paths {
+        use super::*;
+
+        #[test]
+        fn a_king_should_be_able_to_move_to_any_adjacent_square() {
+            let king = Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                (3, 3),
+                (3, 4),
+                (3, 5),
+                (4, 3),
+                (4, 5),
+                (5, 3),
+                (5, 4),
+                (5, 5),
+            ]
+            .into_iter()
+            .for_each(|(x, y)| {
+                assert_eq!(king.path_to_take_piece_at((x, y)), vec![(x, y)]);
+            })
+        }
+
+        #[test]
+        fn a_king_should_not_have_a_path_to_any_non_adjacent_square() {
+            let king = Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [(0, 0), (7, 7), (4, 6), (6, 4)]
+                .into_iter()
+                .for_each(|(x, y)| assert!(king.path_to_take_piece_at((x, y)).is_empty()))
+        }
+
+        #[test]
+        fn a_queen_should_be_able_to_move_to_any_square_on_the_same_row() {
+            let queen = Piece {
+                kind: PieceKind::Queen,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                ((4, 0), vec![(4, 0), (4, 1), (4, 2), (4, 3)]),
+                ((4, 7), vec![(4, 5), (4, 6), (4, 7)]),
+                ((4, 3), vec![(4, 3)]),
+                ((4, 5), vec![(4, 5)]),
+            ]
+            .into_iter()
+            .for_each(|((x, y), path)| {
+                assert_eq!(queen.path_to_take_piece_at((x, y)), path);
+            })
+        }
+
+        #[test]
+        fn a_queen_should_be_able_to_move_to_any_square_on_the_same_column() {
+            let queen = Piece {
+                kind: PieceKind::Queen,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                ((0, 4), vec![(0, 4), (1, 4), (2, 4), (3, 4)]),
+                ((7, 4), vec![(5, 4), (6, 4), (7, 4)]),
+                ((3, 4), vec![(3, 4)]),
+                ((5, 4), vec![(5, 4)]),
+            ]
+            .into_iter()
+            .for_each(|((x, y), path)| {
+                assert_eq!(queen.path_to_take_piece_at((x, y)), path);
+            })
+        }
+
+        #[test]
+        fn a_queen_should_be_able_to_move_to_any_square_on_the_same_diagonal() {
+            let queen = Piece {
+                kind: PieceKind::Queen,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                ((0, 0), vec![(0, 0), (1, 1), (2, 2), (3, 3)]),
+                ((7, 7), vec![(5, 5), (6, 6), (7, 7)]),
+                ((5, 5), vec![(5, 5)]),
+                ((3, 3), vec![(3, 3)]),
+            ]
+            .into_iter()
+            .for_each(|((x, y), path)| {
+                assert_eq!(queen.path_to_take_piece_at((x, y)), path);
+            })
+        }
+
+        #[test]
+        fn a_bishop_should_be_able_to_move_to_any_square_on_the_same_diagonal() {
+            let bishop = Piece {
+                kind: PieceKind::Bishop,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                ((0, 0), vec![(0, 0), (1, 1), (2, 2), (3, 3)]),
+                ((7, 7), vec![(5, 5), (6, 6), (7, 7)]),
+                ((5, 5), vec![(5, 5)]),
+                ((3, 3), vec![(3, 3)]),
+            ]
+            .into_iter()
+            .for_each(|((x, y), path)| {
+                assert_eq!(bishop.path_to_take_piece_at((x, y)), path);
+            })
+        }
+
+        #[test]
+        fn a_bishop_should_not_be_able_to_move_to_any_square_not_on_the_same_diagonal() {
+            let bishop = Piece {
+                kind: PieceKind::Bishop,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                (0, 4),
+                (7, 4),
+                (3, 4),
+                (5, 4),
+                (4, 0),
+                (4, 7),
+                (4, 3),
+                (4, 5),
+            ]
+            .into_iter()
+            .for_each(|(x, y)| {
+                assert!(bishop.path_to_take_piece_at((x, y)).is_empty());
+            })
+        }
+
+        #[test]
+        fn a_knight_should_only_be_able_to_move_2_squares_in_one_direction_and_1_in_the_other() {
+            let knight = Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                (2, 3),
+                (2, 5),
+                (3, 2),
+                (3, 6),
+                (5, 2),
+                (5, 6),
+                (6, 3),
+                (6, 5),
+            ]
+            .into_iter()
+            .for_each(|(x, y)| {
+                assert_eq!(knight.path_to_take_piece_at((x, y)), vec![(x, y)]);
+            })
+        }
+
+        #[test]
+        fn a_rook_should_be_able_to_move_to_any_square_on_the_same_row() {
+            let rook = Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                ((4, 0), vec![(4, 0), (4, 1), (4, 2), (4, 3)]),
+                ((4, 7), vec![(4, 5), (4, 6), (4, 7)]),
+                ((4, 3), vec![(4, 3)]),
+                ((4, 5), vec![(4, 5)]),
+            ]
+            .into_iter()
+            .for_each(|((x, y), path)| {
+                assert_eq!(rook.path_to_take_piece_at((x, y)), path);
+            })
+        }
+
+        #[test]
+        fn a_rook_should_be_able_to_move_to_any_square_on_the_same_column() {
+            let rook = Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                ((0, 4), vec![(0, 4), (1, 4), (2, 4), (3, 4)]),
+                ((7, 4), vec![(5, 4), (6, 4), (7, 4)]),
+                ((3, 4), vec![(3, 4)]),
+                ((5, 4), vec![(5, 4)]),
+            ]
+            .into_iter()
+            .for_each(|((x, y), path)| {
+                assert_eq!(rook.path_to_take_piece_at((x, y)), path);
+            })
+        }
+
+        #[test]
+        fn a_rook_should_not_be_able_to_move_diagonally() {
+            let rook = Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [(0, 0), (7, 7), (5, 5), (3, 3)]
+                .into_iter()
+                .for_each(|(x, y)| {
+                    assert!(rook.path_to_take_piece_at((x, y)).is_empty());
+                })
+        }
+
+        #[test]
+        fn a_black_pawn_should_only_be_able_to_move_down_and_sideways_to_take_a_piece() {
+            let pawn = Piece {
+                kind: PieceKind::Pawn,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                ((3, 3), vec![(3, 3)]),
+                ((3, 5), vec![(3, 5)]),
+                ((3, 4), vec![]),
+                ((2, 4), vec![]),
+                ((5, 3), vec![]),
+                ((5, 5), vec![]),
+            ]
+            .into_iter()
+            .for_each(|((x, y), path)| {
+                assert_eq!(pawn.path_to_take_piece_at((x, y)), path);
+            })
+        }
+
+        #[test]
+        fn a_white_pawn_should_only_be_able_to_move_up_and_sideways_to_take_a_piece() {
+            let pawn = Piece {
+                kind: PieceKind::Pawn,
+                colour: PieceColour::White,
+                x: 4,
+                y: 4,
+            };
+
+            [
+                ((3, 3), vec![]),
+                ((3, 5), vec![]),
+                ((5, 4), vec![]),
+                ((6, 4), vec![]),
+                ((5, 3), vec![(5, 3)]),
+                ((5, 5), vec![(5, 5)]),
+            ]
+            .into_iter()
+            .for_each(|((x, y), path)| {
+                assert_eq!(pawn.path_to_take_piece_at((x, y)), path);
+            })
         }
     }
 }

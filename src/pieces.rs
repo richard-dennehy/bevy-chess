@@ -218,6 +218,97 @@ impl Piece {
 
         false
     }
+
+    /// Array of squares this piece would move through to take a piece at `target`,
+    /// ignoring all other pieces on the board. This includes `target` if it is reachable.
+    /// This assumes that `target` is not the same position as `(self.x, self.y)`.
+    ///
+    /// Used to calculate if moving a piece would block or unblock this piece's movement to the king
+    pub fn path_to_take_piece_at(&self, target: (u8, u8)) -> Vec<(u8, u8)> {
+        let (x, y) = (self.x as i8, self.y as i8);
+        let (t_x, t_y) = (target.0 as i8, target.1 as i8);
+
+        match self.kind {
+            PieceKind::King => {
+                if (x - t_x).abs() == 1 || (y - t_y).abs() == 1 {
+                    vec![target]
+                } else {
+                    vec![]
+                }
+            }
+            PieceKind::Queen => {
+                if x == t_x {
+                    if t_y > y {
+                        // can't use ..= because `RangeInclusive` != `Range`
+                        y+1..t_y+1
+                    } else {
+                        t_y..y
+                    }.map(|y| (self.x, y as u8)).collect()
+                } else if y == t_y {
+                    if t_x > x {
+                        x+1..t_x+1
+                    } else {
+                        t_x..x
+                    }.map(|x| (x as u8, self.y)).collect()
+                } else if (x - t_x).abs() == (y - t_y).abs() {
+                    if t_x > x {
+                        1..=(t_x - x)
+                    } else {
+                        (t_x - x)..=-1
+                    }.map(|adj| ((x + adj) as u8, (y + adj) as u8)).collect()
+                } else {
+                    vec![]
+                }
+            }
+            PieceKind::Bishop => {
+                if (x - t_x).abs() == (y - t_y).abs() {
+                    if t_x > x {
+                        1..=(t_x - x)
+                    } else {
+                        (t_x - x)..=-1
+                    }.map(|adj| ((x + adj) as u8, (y + adj) as u8)).collect()
+                } else {
+                    vec![]
+                }
+            }
+            PieceKind::Knight => {
+                if ((x - t_x).abs() == 2 && (y - t_y).abs() == 1)
+                    || ((x - t_x).abs() == 1 && (y - t_y).abs() == 2)
+                {
+                    vec![target]
+                } else {
+                    vec![]
+                }
+            }
+            PieceKind::Rook => {
+                if x == t_x {
+                    if t_y > y {
+                        y+1..t_y+1
+                    } else {
+                        t_y..y
+                    }.map(|y| (self.x, y as u8)).collect()
+                } else if y == t_y {
+                    if t_x > x {
+                        x+1..t_x+1
+                    } else {
+                        t_x..x
+                    }.map(|x| (x as u8, self.y)).collect()
+                } else {
+                    vec![]
+                }
+            }
+            PieceKind::Pawn => {
+                if ((self.colour == PieceColour::White && t_x == x + 1)
+                    || (self.colour == PieceColour::Black && t_x == x - 1))
+                    && (y - t_y).abs() == 1
+                {
+                    vec![target]
+                } else {
+                    vec![]
+                }
+            }
+        }
+    }
 }
 
 const VELOCITY: f32 = 7.0;
