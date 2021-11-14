@@ -350,8 +350,11 @@ fn check_check(
                                                 (entity == *opposite_entity).then(|| piece)
                                             })
                                             .unwrap();
-                                        // todo check for path obstruction
-                                        opposite_piece.x == *x && opposite_piece.y == *y
+
+                                        (opposite_piece.x == *x && opposite_piece.y == *y)
+                                            || opposite_piece
+                                                .path_to_take_piece_at((king.x, king.y))
+                                                .contains(&(*x, *y))
                                     })
                                 })
                                 .copied()
