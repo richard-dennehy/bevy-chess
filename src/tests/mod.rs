@@ -512,6 +512,41 @@ mod board_tests {
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(game_state.current(), &GameState::NothingSelected);
         }
+
+        #[test]
+        fn should_not_allow_moving_a_piece_if_it_would_leave_the_king_in_check() {
+            let (mut world, mut update_stage) = setup();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            });
+
+            // blocked by rook
+            world.spawn().insert(Piece {
+                kind: PieceKind::Bishop,
+                colour: PieceColour::White,
+                x: 5,
+                y: 2,
+            });
+
+            // currently blocking bishop from taking the king
+            let rook_id = world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 6, y: 3,
+            }).id();
+
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert!(all_valid_moves.get(rook_id).is_empty());
+
+            let game_state = world.get_resource::<State<GameState>>().unwrap();
+            assert_eq!(game_state.current(), &GameState::NothingSelected);
+        }
     }
 }
 

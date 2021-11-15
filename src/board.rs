@@ -294,13 +294,14 @@ pub fn calculate_all_moves(
         let _ = all_moves.insert(entity, valid_moves);
     });
 
-    check_check(player_turn, all_moves, game_state, pieces);
+    check_check(player_turn, all_moves, game_state, board_state, pieces);
 }
 
 fn check_check(
     player_turn: Res<PlayerTurn>,
     mut all_moves: ResMut<AllValidMoves>,
     mut game_state: ResMut<State<GameState>>,
+    board_state: BoardState,
     pieces: Query<(Entity, &Piece)>,
 ) {
     let (player_pieces, opposite_pieces): (Vec<_>, Vec<_>) = pieces
@@ -319,7 +320,6 @@ fn check_check(
         .filter_map(|(entity, moves)| moves.contains(&(king.x, king.y)).then(|| entity))
         .collect::<Vec<_>>();
 
-    // todo filter out moves that would leave the king in check
     let safe_king_moves = all_moves
         .get(*king_entity)
         .into_iter()
@@ -331,16 +331,50 @@ fn check_check(
         .copied()
         .collect::<Vec<_>>();
 
+    // pieces that could reach the king but are blocked by a single piece of the player colour
+    let potential_threats = opposite_pieces
+        .iter()
+        .filter(|(_, piece)| {
+            let obstructions = piece
+                .path_to_take_piece_at((king.x, king.y))
+                .into_iter()
+                .filter_map(|(x, y)| board_state.get(x, y).as_ref())
+                .collect::<Vec<_>>();
+
+            // don't need to worry about pieces that are blocked by pieces of the same colour (as these can't be moved this turn) or pieces that are blocked by multiple pieces
+            !obstructions.contains(&&player_turn.0.opposite()) || obstructions.len() >= 2
+        })
+        .collect::<Vec<_>>();
+
+    let safe_player_moves = player_pieces
+        .iter()
+        .filter(|(entity, _)| entity != king_entity)
+        .map(|(entity, piece)| {
+            let safe_moves = all_moves
+                .get(*entity)
+                .iter()
+                .filter(|(x, y)| {
+                    // safe move iff: doesn't open up a path to the king, or stays within the same path
+                    potential_threats.iter().all(|(_, threat)| {
+                        let path = threat.path_to_take_piece_at((king.x, king.y));
+                        !path.contains(&(piece.x, piece.y)) || path.contains(&(*x, *y))
+                    })
+                })
+                .copied()
+                .collect::<Vec<_>>();
+            (entity, safe_moves)
+        })
+        .collect::<Vec<_>>();
+
     if !entities_threatening_king.is_empty() {
         let counter_moves: Vec<(Entity, Vec<(u8, u8)>)> =
             std::iter::once((*king_entity, safe_king_moves))
                 .chain(
-                    player_pieces
+                    safe_player_moves
                         .iter()
-                        .filter(|(entity, _)| entity != king_entity)
-                        .map(|(entity, _)| {
-                            let moves = all_moves.get(*entity);
-                            let counter_moves = moves
+                        .filter(|(entity, _)| *entity != king_entity)
+                        .map(|(entity, safe_moves)| {
+                            let counter_moves = safe_moves
                                 .iter()
                                 .filter(|(x, y)| {
                                     entities_threatening_king.iter().all(|opposite_entity| {
@@ -360,7 +394,7 @@ fn check_check(
                                 .copied()
                                 .collect::<Vec<_>>();
 
-                            (*entity, counter_moves)
+                            (**entity, counter_moves)
                         }),
                 )
                 .collect();
@@ -374,22 +408,10 @@ fn check_check(
         });
     } else {
         let _ = all_moves.insert(*king_entity, safe_king_moves);
+        safe_player_moves.into_iter().for_each(|(entity, moves)| {
+            let _ = all_moves.insert(*entity, moves);
+        })
     }
-
-    // for each valid move of King:
-    //   - for each piece of opposite colour:
-    //     - check if valid moves contains potential position
-    //     - filter these out of valid moves
-
-    // for each piece of opposite colour:
-    //   - check if valid moves contains King position
-    //   - check if _same_ colour pieces can take that piece
-    //   - check if _same_ colour pieces can block that piece
-
-    // ensure valid moves only contains safe King moves or counter-check moves
-    // if multiple pieces have King in check, ensure all of these are blocked (is that even possible?)
-
-    // ensure moving a piece does not leave the king in check
 }
 
 fn select_square(
