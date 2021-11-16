@@ -1,5 +1,6 @@
 use crate::board::{BoardState, GameState, MovePiece, PlayerTurn};
 use bevy::prelude::*;
+use std::cmp::Ordering;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::fmt::Formatter;
 
@@ -228,7 +229,7 @@ impl Piece {
         let (x, y) = (self.x as i8, self.y as i8);
         let (t_x, t_y) = (target.0 as i8, target.1 as i8);
 
-        match self.kind {
+        let mut path = match self.kind {
             PieceKind::King => {
                 if (x - t_x).abs() == 1 || (y - t_y).abs() == 1 {
                     vec![target]
@@ -240,22 +241,24 @@ impl Piece {
                 if x == t_x {
                     if t_y > y {
                         // can't use ..= because `RangeInclusive` != `Range`
-                        y+1..t_y+1
+                        y + 1..t_y + 1
                     } else {
                         t_y..y
-                    }.map(|y| (self.x, y as u8)).collect()
+                    }
+                    .map(|y| (self.x, y as u8))
+                    .collect()
                 } else if y == t_y {
-                    if t_x > x {
-                        x+1..t_x+1
-                    } else {
-                        t_x..x
-                    }.map(|x| (x as u8, self.y)).collect()
+                    if t_x > x { x + 1..t_x + 1 } else { t_x..x }
+                        .map(|x| (x as u8, self.y))
+                        .collect()
                 } else if (x - t_x).abs() == (y - t_y).abs() {
                     if t_x > x {
                         1..=(t_x - x)
                     } else {
                         (t_x - x)..=-1
-                    }.map(|adj| ((x + adj) as u8, (y + adj) as u8)).collect()
+                    }
+                    .map(|adj| ((x + adj) as u8, (y + adj) as u8))
+                    .collect()
                 } else {
                     vec![]
                 }
@@ -266,7 +269,9 @@ impl Piece {
                         1..=(t_x - x)
                     } else {
                         (t_x - x)..=-1
-                    }.map(|adj| ((x + adj) as u8, (y + adj) as u8)).collect()
+                    }
+                    .map(|adj| ((x + adj) as u8, (y + adj) as u8))
+                    .collect()
                 } else {
                     vec![]
                 }
@@ -282,17 +287,13 @@ impl Piece {
             }
             PieceKind::Rook => {
                 if x == t_x {
-                    if t_y > y {
-                        y+1..t_y+1
-                    } else {
-                        t_y..y
-                    }.map(|y| (self.x, y as u8)).collect()
+                    if t_y > y { y + 1..t_y + 1 } else { t_y..y }
+                        .map(|y| (self.x, y as u8))
+                        .collect()
                 } else if y == t_y {
-                    if t_x > x {
-                        x+1..t_x+1
-                    } else {
-                        t_x..x
-                    }.map(|x| (x as u8, self.y)).collect()
+                    if t_x > x { x + 1..t_x + 1 } else { t_x..x }
+                        .map(|x| (x as u8, self.y))
+                        .collect()
                 } else {
                     vec![]
                 }
@@ -307,7 +308,21 @@ impl Piece {
                     vec![]
                 }
             }
-        }
+        };
+
+        path.push((self.x, self.y));
+        path.sort_unstable_by(|(x1, y1), (x2, y2)| {
+            if x1 == x2 && y1 == y2 {
+                Ordering::Equal
+            } else if x1 == x2 && y1 < y2 {
+                Ordering::Less
+            } else if x1 < x2 {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        });
+        path
     }
 }
 

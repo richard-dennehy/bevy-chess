@@ -533,11 +533,15 @@ mod board_tests {
             });
 
             // currently blocking bishop from taking the king
-            let rook_id = world.spawn().insert(Piece {
-                kind: PieceKind::Rook,
-                colour: PieceColour::Black,
-                x: 6, y: 3,
-            }).id();
+            let rook_id = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::Black,
+                    x: 6,
+                    y: 3,
+                })
+                .id();
 
             update_stage.run(&mut world);
 
@@ -546,6 +550,41 @@ mod board_tests {
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(game_state.current(), &GameState::NothingSelected);
+        }
+
+        #[test]
+        fn should_allow_moving_a_piece_protecting_the_king_towards_the_blocked_piece() {
+            let (mut world, mut update_stage) = setup();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            });
+
+            // blocked by black bishop
+            world.spawn().insert(Piece {
+                kind: PieceKind::Bishop,
+                colour: PieceColour::White,
+                x: 3,
+                y: 0,
+            });
+
+            let bishop_id = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Bishop,
+                    colour: PieceColour::Black,
+                    x: 6,
+                    y: 3,
+                })
+                .id();
+
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(bishop_id), &vec![(3, 0), (4, 1), (5, 2)]);
         }
     }
 }
@@ -1249,18 +1288,18 @@ mod piece_tests {
             };
 
             [
-                (3, 3),
-                (3, 4),
-                (3, 5),
-                (4, 3),
-                (4, 5),
-                (5, 3),
-                (5, 4),
-                (5, 5),
+                ((3, 3), vec![(3, 3), (4, 4)]),
+                ((3, 4), vec![(3, 4), (4, 4)]),
+                ((3, 5), vec![(3, 5), (4, 4)]),
+                ((4, 3), vec![(4, 3), (4, 4)]),
+                ((4, 5), vec![(4, 4), (4, 5)]),
+                ((5, 3), vec![(4, 4), (5, 3)]),
+                ((5, 4), vec![(4, 4), (5, 4)]),
+                ((5, 5), vec![(4, 4), (5, 5)]),
             ]
             .into_iter()
-            .for_each(|(x, y)| {
-                assert_eq!(king.path_to_take_piece_at((x, y)), vec![(x, y)]);
+            .for_each(|((x, y), path)| {
+                assert_eq!(king.path_to_take_piece_at((x, y)), path);
             })
         }
 
@@ -1275,7 +1314,7 @@ mod piece_tests {
 
             [(0, 0), (7, 7), (4, 6), (6, 4)]
                 .into_iter()
-                .for_each(|(x, y)| assert!(king.path_to_take_piece_at((x, y)).is_empty()))
+                .for_each(|(x, y)| assert_eq!(king.path_to_take_piece_at((x, y)), vec![(4, 4)]))
         }
 
         #[test]
@@ -1288,10 +1327,10 @@ mod piece_tests {
             };
 
             [
-                ((4, 0), vec![(4, 0), (4, 1), (4, 2), (4, 3)]),
-                ((4, 7), vec![(4, 5), (4, 6), (4, 7)]),
-                ((4, 3), vec![(4, 3)]),
-                ((4, 5), vec![(4, 5)]),
+                ((4, 0), vec![(4, 0), (4, 1), (4, 2), (4, 3), (4, 4)]),
+                ((4, 7), vec![(4, 4), (4, 5), (4, 6), (4, 7)]),
+                ((4, 3), vec![(4, 3), (4, 4)]),
+                ((4, 5), vec![(4, 4), (4, 5)]),
             ]
             .into_iter()
             .for_each(|((x, y), path)| {
@@ -1309,10 +1348,10 @@ mod piece_tests {
             };
 
             [
-                ((0, 4), vec![(0, 4), (1, 4), (2, 4), (3, 4)]),
-                ((7, 4), vec![(5, 4), (6, 4), (7, 4)]),
-                ((3, 4), vec![(3, 4)]),
-                ((5, 4), vec![(5, 4)]),
+                ((0, 4), vec![(0, 4), (1, 4), (2, 4), (3, 4), (4, 4)]),
+                ((7, 4), vec![(4, 4), (5, 4), (6, 4), (7, 4)]),
+                ((3, 4), vec![(3, 4), (4, 4)]),
+                ((5, 4), vec![(4, 4), (5, 4)]),
             ]
             .into_iter()
             .for_each(|((x, y), path)| {
@@ -1330,10 +1369,10 @@ mod piece_tests {
             };
 
             [
-                ((0, 0), vec![(0, 0), (1, 1), (2, 2), (3, 3)]),
-                ((7, 7), vec![(5, 5), (6, 6), (7, 7)]),
-                ((5, 5), vec![(5, 5)]),
-                ((3, 3), vec![(3, 3)]),
+                ((0, 0), vec![(0, 0), (1, 1), (2, 2), (3, 3), (4, 4)]),
+                ((7, 7), vec![(4, 4), (5, 5), (6, 6), (7, 7)]),
+                ((5, 5), vec![(4, 4), (5, 5)]),
+                ((3, 3), vec![(3, 3), (4, 4)]),
             ]
             .into_iter()
             .for_each(|((x, y), path)| {
@@ -1351,10 +1390,10 @@ mod piece_tests {
             };
 
             [
-                ((0, 0), vec![(0, 0), (1, 1), (2, 2), (3, 3)]),
-                ((7, 7), vec![(5, 5), (6, 6), (7, 7)]),
-                ((5, 5), vec![(5, 5)]),
-                ((3, 3), vec![(3, 3)]),
+                ((0, 0), vec![(0, 0), (1, 1), (2, 2), (3, 3), (4, 4)]),
+                ((7, 7), vec![(4, 4), (5, 5), (6, 6), (7, 7)]),
+                ((5, 5), vec![(4, 4), (5, 5)]),
+                ((3, 3), vec![(3, 3), (4, 4)]),
             ]
             .into_iter()
             .for_each(|((x, y), path)| {
@@ -1383,7 +1422,7 @@ mod piece_tests {
             ]
             .into_iter()
             .for_each(|(x, y)| {
-                assert!(bishop.path_to_take_piece_at((x, y)).is_empty());
+                assert_eq!(bishop.path_to_take_piece_at((x, y)), vec![(4, 4)]);
             })
         }
 
@@ -1397,18 +1436,18 @@ mod piece_tests {
             };
 
             [
-                (2, 3),
-                (2, 5),
-                (3, 2),
-                (3, 6),
-                (5, 2),
-                (5, 6),
-                (6, 3),
-                (6, 5),
+                ((2, 3), vec![(2, 3), (4, 4)]),
+                ((2, 5), vec![(2, 5), (4, 4)]),
+                ((3, 2), vec![(3, 2), (4, 4)]),
+                ((3, 6), vec![(3, 6), (4, 4)]),
+                ((5, 2), vec![(4, 4), (5, 2)]),
+                ((5, 6), vec![(4, 4), (5, 6)]),
+                ((6, 3), vec![(4, 4), (6, 3)]),
+                ((6, 5), vec![(4, 4), (6, 5)]),
             ]
             .into_iter()
-            .for_each(|(x, y)| {
-                assert_eq!(knight.path_to_take_piece_at((x, y)), vec![(x, y)]);
+            .for_each(|((x, y), path)| {
+                assert_eq!(knight.path_to_take_piece_at((x, y)), path);
             })
         }
 
@@ -1422,10 +1461,10 @@ mod piece_tests {
             };
 
             [
-                ((4, 0), vec![(4, 0), (4, 1), (4, 2), (4, 3)]),
-                ((4, 7), vec![(4, 5), (4, 6), (4, 7)]),
-                ((4, 3), vec![(4, 3)]),
-                ((4, 5), vec![(4, 5)]),
+                ((4, 0), vec![(4, 0), (4, 1), (4, 2), (4, 3), (4, 4)]),
+                ((4, 7), vec![(4, 4), (4, 5), (4, 6), (4, 7)]),
+                ((4, 3), vec![(4, 3), (4, 4)]),
+                ((4, 5), vec![(4, 4), (4, 5)]),
             ]
             .into_iter()
             .for_each(|((x, y), path)| {
@@ -1443,10 +1482,10 @@ mod piece_tests {
             };
 
             [
-                ((0, 4), vec![(0, 4), (1, 4), (2, 4), (3, 4)]),
-                ((7, 4), vec![(5, 4), (6, 4), (7, 4)]),
-                ((3, 4), vec![(3, 4)]),
-                ((5, 4), vec![(5, 4)]),
+                ((0, 4), vec![(0, 4), (1, 4), (2, 4), (3, 4), (4, 4)]),
+                ((7, 4), vec![(4, 4), (5, 4), (6, 4), (7, 4)]),
+                ((3, 4), vec![(3, 4), (4, 4)]),
+                ((5, 4), vec![(4, 4), (5, 4)]),
             ]
             .into_iter()
             .for_each(|((x, y), path)| {
@@ -1466,7 +1505,7 @@ mod piece_tests {
             [(0, 0), (7, 7), (5, 5), (3, 3)]
                 .into_iter()
                 .for_each(|(x, y)| {
-                    assert!(rook.path_to_take_piece_at((x, y)).is_empty());
+                    assert_eq!(rook.path_to_take_piece_at((x, y)), vec![(4, 4)]);
                 })
         }
 
@@ -1480,12 +1519,12 @@ mod piece_tests {
             };
 
             [
-                ((3, 3), vec![(3, 3)]),
-                ((3, 5), vec![(3, 5)]),
-                ((3, 4), vec![]),
-                ((2, 4), vec![]),
-                ((5, 3), vec![]),
-                ((5, 5), vec![]),
+                ((3, 3), vec![(3, 3), (4, 4)]),
+                ((3, 5), vec![(3, 5), (4, 4)]),
+                ((3, 4), vec![(4, 4)]),
+                ((2, 4), vec![(4, 4)]),
+                ((5, 3), vec![(4, 4)]),
+                ((5, 5), vec![(4, 4)]),
             ]
             .into_iter()
             .for_each(|((x, y), path)| {
@@ -1503,12 +1542,12 @@ mod piece_tests {
             };
 
             [
-                ((3, 3), vec![]),
-                ((3, 5), vec![]),
-                ((5, 4), vec![]),
-                ((6, 4), vec![]),
-                ((5, 3), vec![(5, 3)]),
-                ((5, 5), vec![(5, 5)]),
+                ((3, 3), vec![(4, 4)]),
+                ((3, 5), vec![(4, 4)]),
+                ((5, 4), vec![(4, 4)]),
+                ((6, 4), vec![(4, 4)]),
+                ((5, 3), vec![(4, 4), (5, 3)]),
+                ((5, 5), vec![(4, 4), (5, 5)]),
             ]
             .into_iter()
             .for_each(|((x, y), path)| {
