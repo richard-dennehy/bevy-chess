@@ -103,6 +103,7 @@
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/wgpu-core-49fa47a9d6a74a9a/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/winapi-023a3acdddea310f/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/winapi-567640a0523f8ab6/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benches" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

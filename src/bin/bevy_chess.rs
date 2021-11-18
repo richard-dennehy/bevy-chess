@@ -1,18 +1,11 @@
-#![feature(option_result_contains)]
+extern crate bevy_chess;
 
 use bevy::input::system::exit_on_esc_system;
-use crate::board::BoardPlugin;
-use crate::pieces::PiecePlugin;
-use crate::ui::UiPlugin;
+use bevy_chess::board::BoardPlugin;
+use bevy_chess::pieces::PiecePlugin;
+use bevy_chess::ui::UiPlugin;
 use bevy::prelude::*;
 use bevy_mod_picking::{PickingCameraBundle, PickingPlugin};
-
-mod board;
-mod pieces;
-mod ui;
-
-#[cfg(test)]
-mod tests;
 
 fn main() {
     App::build()

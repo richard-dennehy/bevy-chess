@@ -586,6 +586,93 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(bishop_id), &vec![(3, 0), (4, 1), (5, 2)]);
         }
+
+        #[test]
+        fn should_not_be_able_to_move_a_piece_to_take_a_second_piece_with_the_king_in_check_if_it_is_blocking_a_third_piece() {
+            let (mut world, mut update_stage) = setup();
+
+            let king_id = world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            // has the king in check
+            world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::White,
+                x: 5,
+                y: 3,
+            });
+
+            // could move to take the knight, but would expose the king to the rook
+            let pawn_id = world.spawn().insert(Piece {
+                kind: PieceKind::Pawn,
+                colour: PieceColour::Black,
+                x: 6,
+                y: 4,
+            }).id();
+
+            // blocked by pawn
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 5,
+                y: 4,
+            });
+
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert!(all_valid_moves.get(pawn_id).is_empty());
+            assert_eq!(all_valid_moves.get(king_id), &vec![(6, 3), (7, 3), (7, 5)]);
+        }
+
+        #[test]
+        fn should_detect_checkmate_when_multiple_pieces_have_the_king_in_check_even_when_they_can_both_be_taken() {
+            let (mut world, mut update_stage) = setup();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            });
+
+            let mut spawn_pawn = |x: u8, y: u8| {
+                world.spawn().insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x,
+                    y
+                });
+            };
+
+            spawn_pawn(7, 3);
+            spawn_pawn(6, 3);
+            spawn_pawn(7, 5);
+            spawn_pawn(6, 5);
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::White,
+                x: 5,
+                y: 3,
+            });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Queen,
+                colour: PieceColour::White,
+                x: 5,
+                y: 4,
+            });
+
+            update_stage.run(&mut world);
+
+            let game_state = world.get_resource::<State<GameState>>().unwrap();
+            assert_eq!(game_state.current(), &GameState::Checkmate(PieceColour::Black));
+        }
     }
 }
 
