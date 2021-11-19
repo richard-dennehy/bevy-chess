@@ -283,27 +283,17 @@ fn highlight_square_on_hover(
 pub fn calculate_all_moves(
     player_turn: Res<PlayerTurn>,
     mut all_moves: ResMut<AllValidMoves>,
-    game_state: ResMut<State<GameState>>,
+    mut game_state: ResMut<State<GameState>>,
     pieces: Query<(Entity, &Piece)>,
 ) {
     let board_state = pieces.iter().map(|(_, piece)| piece).collect();
 
     // note: this calculates all potential moves for both sides - this makes it easier to check for check(mate)
-    pieces.iter().for_each(|(entity, piece)| {
+    pieces.for_each(|(entity, piece)| {
         let valid_moves = piece.valid_moves(&board_state);
         let _ = all_moves.insert(entity, valid_moves);
     });
 
-    check_check(player_turn, all_moves, game_state, board_state, pieces);
-}
-
-fn check_check(
-    player_turn: Res<PlayerTurn>,
-    mut all_moves: ResMut<AllValidMoves>,
-    mut game_state: ResMut<State<GameState>>,
-    board_state: BoardState,
-    pieces: Query<(Entity, &Piece)>,
-) {
     let (player_pieces, opposite_pieces): (Vec<_>, Vec<_>) = pieces
         .iter()
         .partition(|(_, piece)| piece.colour == player_turn.0);
@@ -311,17 +301,20 @@ fn check_check(
     let (king_entity, king) = player_pieces
         .iter()
         .find(|(_, piece)| piece.colour == player_turn.0 && piece.kind == PieceKind::King)
+        .copied()
         .expect("there should always be 2 kings");
 
-    let entities_threatening_king = all_moves
-        .0
+    // find opposite colour pieces that have the king in check
+    let pieces_threatening_king = opposite_pieces
         .iter()
-        // find opposite colour pieces that will be able to take the king next turn
-        .filter_map(|(entity, moves)| moves.contains(&(king.x, king.y)).then(|| entity))
+        .filter_map(|(entity, _)| {
+            all_moves.get(*entity).contains(&(king.x, king.y)).then(|| pieces.get(*entity).unwrap().1)
+        })
         .collect::<Vec<_>>();
 
+    // moves that the king can make without leaving itself in check
     let safe_king_moves = all_moves
-        .get(*king_entity)
+        .get(king_entity)
         .into_iter()
         .filter(|(x, y)| {
             !opposite_pieces
@@ -346,15 +339,16 @@ fn check_check(
         })
         .collect::<Vec<_>>();
 
+    // moves that player pieces (excluding the king) can make without exposing the king to check
     let safe_player_moves = player_pieces
         .iter()
-        .filter(|(entity, _)| entity != king_entity)
+        .filter(|(entity, _)| *entity != king_entity)
         .map(|(entity, piece)| {
             let safe_moves = all_moves
                 .get(*entity)
                 .iter()
                 .filter(|(x, y)| {
-                    // safe move iff: doesn't open up a path to the king, or stays within the same path
+                    // safe move iff: doesn't open up a path to the king, or stays within the same path, or takes the piece
                     potential_threats.iter().all(|(_, threat)| {
                         let path = threat.path_to_take_piece_at((king.x, king.y));
                         !path.contains(&(piece.x, piece.y)) || path.contains(&(*x, *y))
@@ -366,29 +360,23 @@ fn check_check(
         })
         .collect::<Vec<_>>();
 
-    if !entities_threatening_king.is_empty() {
+    // king is currently in check - only allow moves that protect the king
+    if !pieces_threatening_king.is_empty() {
         let counter_moves: Vec<(Entity, Vec<(u8, u8)>)> =
-            std::iter::once((*king_entity, safe_king_moves))
+            std::iter::once((king_entity, safe_king_moves))
                 .chain(
                     safe_player_moves
                         .iter()
-                        .filter(|(entity, _)| *entity != king_entity)
                         .map(|(entity, safe_moves)| {
+                            // this piece can only move if it can take or block the piece that has the king in check
                             let counter_moves = safe_moves
                                 .iter()
-                                .filter(|(x, y)| {
-                                    entities_threatening_king.iter().all(|opposite_entity| {
-                                        let opposite_piece = opposite_pieces
-                                            .iter()
-                                            .find_map(|(entity, piece)| {
-                                                (entity == *opposite_entity).then(|| piece)
-                                            })
-                                            .unwrap();
-
-                                        (opposite_piece.x == *x && opposite_piece.y == *y)
+                                .filter(|(move_x, move_y)| {
+                                    pieces_threatening_king.iter().all(|opposite_piece| {
+                                        (opposite_piece.x == *move_x && opposite_piece.y == *move_y)
                                             || opposite_piece
                                                 .path_to_take_piece_at((king.x, king.y))
-                                                .contains(&(*x, *y))
+                                                .contains(&(*move_x, *move_y))
                                     })
                                 })
                                 .copied()
@@ -407,7 +395,7 @@ fn check_check(
             let _ = all_moves.insert(entity, moves);
         });
     } else {
-        let _ = all_moves.insert(*king_entity, safe_king_moves);
+        let _ = all_moves.insert(king_entity, safe_king_moves);
         safe_player_moves.into_iter().for_each(|(entity, moves)| {
             let _ = all_moves.insert(*entity, moves);
         })
