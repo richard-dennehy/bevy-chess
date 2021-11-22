@@ -691,8 +691,45 @@ mod board_tests {
 
     mod special_moves {
         use super::*;
-        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, GameState, PlayerTurn, SelectedPiece, SelectedSquare, Square, EnPassantData, Taken};
+        use crate::board::{
+            calculate_all_moves, move_piece, AllValidMoves, EnPassantData, GameState, PlayerTurn,
+            SelectedPiece, SelectedSquare, Square, Taken,
+        };
+        use bevy::ecs::component::Component;
         use bevy::prelude::*;
+
+        trait WorldTestUtils {
+            fn overwrite_resource<T: Component>(&mut self, resource: T);
+            fn check_and_overwrite_state(
+                &mut self,
+                expected_state: GameState,
+                new_state: GameState,
+            );
+            fn square(&mut self, x: u8, y: u8) -> Entity;
+        }
+
+        impl WorldTestUtils for World {
+            fn overwrite_resource<T: Component>(&mut self, resource: T) {
+                *self.get_resource_mut::<T>().unwrap() = resource;
+            }
+
+            fn check_and_overwrite_state(
+                &mut self,
+                expected_state: GameState,
+                new_state: GameState,
+            ) {
+                let mut state = self.get_resource_mut::<State<GameState>>().unwrap();
+                assert_eq!(state.current(), &expected_state);
+                state.overwrite_set(new_state).unwrap();
+            }
+
+            fn square(&mut self, x: u8, y: u8) -> Entity {
+                self.query::<(Entity, &Square)>()
+                    .iter(self)
+                    .find_map(|(entity, square)| (square.x == x && square.y == y).then(|| entity))
+                    .unwrap()
+            }
+        }
 
         fn setup() -> (World, SystemStage) {
             let mut world = World::new();
@@ -704,7 +741,11 @@ mod board_tests {
             world.insert_resource(SelectedPiece::default());
             world.insert_resource::<Option<EnPassantData>>(None);
 
-            (0..8).for_each(|x| (0..8).for_each(|y| { world.spawn().insert(Square { x, y }); }));
+            (0..8).for_each(|x| {
+                (0..8).for_each(|y| {
+                    world.spawn().insert(Square { x, y });
+                })
+            });
 
             let mut update_stage = SystemStage::parallel();
             update_stage.add_system_set(State::<GameState>::get_driver());
@@ -763,63 +804,50 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
 
-            world
-                .get_resource_mut::<State<GameState>>()
-                .unwrap()
-                .overwrite_set(GameState::TargetSquareSelected)
-                .unwrap();
-            world.get_resource_mut::<SelectedPiece>().unwrap().0 = Some(black_pawn);
-
-            let (square, _) = world
-                .query::<(Entity, &Square)>()
-                .iter(&world)
-                .find(|(_, square)| square.x == 4 && square.y == 4)
-                .unwrap();
-
-            world.get_resource_mut::<SelectedSquare>().unwrap().0 = Some(square);
+            world.check_and_overwrite_state(
+                GameState::NothingSelected,
+                GameState::TargetSquareSelected,
+            );
+            world.overwrite_resource(SelectedPiece(Some(black_pawn)));
+            let square = world.square(4, 4);
+            world.overwrite_resource(SelectedSquare(Some(square)));
 
             stage.run(&mut world);
 
             let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
-            assert_eq!(en_passant_data, &Some(EnPassantData {
-                piece_id: black_pawn,
-                x: 4,
-                y: 4,
-            }));
+            assert_eq!(
+                en_passant_data,
+                &Some(EnPassantData {
+                    piece_id: black_pawn,
+                    x: 4,
+                    y: 4,
+                })
+            );
 
-            let mut state = world.get_resource_mut::<State<GameState>>().unwrap();
-            assert_eq!(state.current(), &GameState::MovingPiece);
-
-            state
-                .overwrite_set(GameState::NothingSelected)
-                .unwrap();
+            world.check_and_overwrite_state(GameState::MovingPiece, GameState::NothingSelected);
             world.get_resource_mut::<PlayerTurn>().unwrap().next();
 
             stage.run(&mut world);
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3), (5, 4)]);
 
-            world
-                .get_resource_mut::<State<GameState>>()
-                .unwrap()
-                .overwrite_set(GameState::TargetSquareSelected)
-                .unwrap();
-            world.get_resource_mut::<SelectedPiece>().unwrap().0 = Some(white_pawn);
-
-            let (square, _) = world
-                .query::<(Entity, &Square)>()
-                .iter(&world)
-                .find(|(_, square)| square.x == 5 && square.y == 4)
-                .unwrap();
-
-            world.get_resource_mut::<SelectedSquare>().unwrap().0 = Some(square);
+            world.check_and_overwrite_state(
+                GameState::NothingSelected,
+                GameState::TargetSquareSelected,
+            );
+            world.overwrite_resource(SelectedPiece(Some(white_pawn)));
+            let square = world.square(5, 4);
+            world.overwrite_resource(SelectedSquare(Some(square)));
 
             stage.run(&mut world);
 
             let state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(state.current(), &GameState::MovingPiece);
 
-            assert!(world.get_resource::<Option<EnPassantData>>().unwrap().is_none());
+            assert!(world
+                .get_resource::<Option<EnPassantData>>()
+                .unwrap()
+                .is_none());
             assert!(world.get::<Taken>(black_pawn).is_some())
         }
 

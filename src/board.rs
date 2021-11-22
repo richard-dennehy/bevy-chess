@@ -518,7 +518,7 @@ pub fn move_piece(
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
             if piece.kind == PieceKind::Pawn {
                 if let Some(en_passant) = en_passant_data.take() {
-                    if piece.x != square.x {
+                    if piece.x == en_passant.x {
                         commands.entity(en_passant.piece_id).insert(Taken);
                     }
                 } else if piece.x.abs_diff(square.x) == 2 {
