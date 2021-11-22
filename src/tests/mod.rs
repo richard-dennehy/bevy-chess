@@ -584,19 +584,26 @@ mod board_tests {
             update_stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(bishop_id), &vec![(3, 0), (4, 1), (5, 2)]);
+            assert_eq!(
+                all_valid_moves.get(bishop_id),
+                &vec![(3, 0), (4, 1), (5, 2)]
+            );
         }
 
         #[test]
-        fn should_not_be_able_to_move_a_piece_to_take_a_second_piece_with_the_king_in_check_if_it_is_blocking_a_third_piece() {
+        fn should_not_be_able_to_move_a_piece_to_take_a_second_piece_with_the_king_in_check_if_it_is_blocking_a_third_piece(
+        ) {
             let (mut world, mut update_stage) = setup();
 
-            let king_id = world.spawn().insert(Piece {
-                kind: PieceKind::King,
-                colour: PieceColour::Black,
-                x: 7,
-                y: 4,
-            }).id();
+            let king_id = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
 
             // has the king in check
             world.spawn().insert(Piece {
@@ -607,12 +614,15 @@ mod board_tests {
             });
 
             // could move to take the knight, but would expose the king to the rook
-            let pawn_id = world.spawn().insert(Piece {
-                kind: PieceKind::Pawn,
-                colour: PieceColour::Black,
-                x: 6,
-                y: 4,
-            }).id();
+            let pawn_id = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x: 6,
+                    y: 4,
+                })
+                .id();
 
             // blocked by pawn
             world.spawn().insert(Piece {
@@ -630,7 +640,8 @@ mod board_tests {
         }
 
         #[test]
-        fn should_detect_checkmate_when_multiple_pieces_have_the_king_in_check_even_when_they_can_both_be_taken() {
+        fn should_detect_checkmate_when_multiple_pieces_have_the_king_in_check_even_when_they_can_both_be_taken(
+        ) {
             let (mut world, mut update_stage) = setup();
 
             world.spawn().insert(Piece {
@@ -645,7 +656,7 @@ mod board_tests {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::Black,
                     x,
-                    y
+                    y,
                 });
             };
 
@@ -671,7 +682,168 @@ mod board_tests {
             update_stage.run(&mut world);
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
-            assert_eq!(game_state.current(), &GameState::Checkmate(PieceColour::Black));
+            assert_eq!(
+                game_state.current(),
+                &GameState::Checkmate(PieceColour::Black)
+            );
+        }
+    }
+
+    mod special_moves {
+        use super::*;
+        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, GameState, PlayerTurn, SelectedPiece, SelectedSquare, Square, EnPassantData, Taken};
+        use bevy::prelude::*;
+
+        fn setup() -> (World, SystemStage) {
+            let mut world = World::new();
+
+            world.insert_resource(AllValidMoves::default());
+            world.insert_resource(PlayerTurn(PieceColour::Black));
+            world.insert_resource(State::new(GameState::NothingSelected));
+            world.insert_resource(SelectedSquare::default());
+            world.insert_resource(SelectedPiece::default());
+            world.insert_resource::<Option<EnPassantData>>(None);
+
+            (0..8).for_each(|x| (0..8).for_each(|y| { world.spawn().insert(Square { x, y }); }));
+
+            let mut update_stage = SystemStage::parallel();
+            update_stage.add_system_set(State::<GameState>::get_driver());
+            update_stage.add_system_set(
+                SystemSet::on_update(GameState::NothingSelected)
+                    .with_system(calculate_all_moves.system()),
+            );
+            update_stage.add_system_set(
+                SystemSet::on_update(GameState::TargetSquareSelected)
+                    .with_system(move_piece.system()),
+            );
+
+            (world, update_stage)
+        }
+
+        #[test]
+        fn when_a_pawn_makes_a_two_step_move_an_adjacent_pawn_can_take_it_en_passant_on_the_next_turn(
+        ) {
+            let (mut world, mut stage) = setup();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::White,
+                x: 0,
+                y: 4,
+            });
+
+            let black_pawn = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x: 6,
+                    y: 4,
+                })
+                .id();
+
+            let white_pawn = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::White,
+                    x: 4,
+                    y: 3,
+                })
+                .id();
+
+            stage.run(&mut world);
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
+
+            world
+                .get_resource_mut::<State<GameState>>()
+                .unwrap()
+                .overwrite_set(GameState::TargetSquareSelected)
+                .unwrap();
+            world.get_resource_mut::<SelectedPiece>().unwrap().0 = Some(black_pawn);
+
+            let (square, _) = world
+                .query::<(Entity, &Square)>()
+                .iter(&world)
+                .find(|(_, square)| square.x == 4 && square.y == 4)
+                .unwrap();
+
+            world.get_resource_mut::<SelectedSquare>().unwrap().0 = Some(square);
+
+            stage.run(&mut world);
+
+            let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
+            assert_eq!(en_passant_data, &Some(EnPassantData {
+                piece_id: black_pawn,
+                x: 4,
+                y: 4,
+            }));
+
+            let mut state = world.get_resource_mut::<State<GameState>>().unwrap();
+            assert_eq!(state.current(), &GameState::MovingPiece);
+
+            state
+                .overwrite_set(GameState::NothingSelected)
+                .unwrap();
+            world.get_resource_mut::<PlayerTurn>().unwrap().next();
+
+            stage.run(&mut world);
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3), (5, 4)]);
+
+            world
+                .get_resource_mut::<State<GameState>>()
+                .unwrap()
+                .overwrite_set(GameState::TargetSquareSelected)
+                .unwrap();
+            world.get_resource_mut::<SelectedPiece>().unwrap().0 = Some(white_pawn);
+
+            let (square, _) = world
+                .query::<(Entity, &Square)>()
+                .iter(&world)
+                .find(|(_, square)| square.x == 5 && square.y == 4)
+                .unwrap();
+
+            world.get_resource_mut::<SelectedSquare>().unwrap().0 = Some(square);
+
+            stage.run(&mut world);
+
+            let state = world.get_resource::<State<GameState>>().unwrap();
+            assert_eq!(state.current(), &GameState::MovingPiece);
+
+            assert!(world.get_resource::<Option<EnPassantData>>().unwrap().is_none());
+            assert!(world.get::<Taken>(black_pawn).is_some())
+        }
+
+        #[test]
+        fn when_a_pawn_makes_a_two_step_move_an_adjacent_pawn_cannot_take_it_en_passant_if_a_turn_has_passed(
+        ) {
+            todo!()
+        }
+
+        #[test]
+        fn it_should_be_possible_to_take_a_pawn_with_the_king_in_check_using_en_passant() {
+            todo!()
+        }
+
+        #[test]
+        fn it_should_not_be_possible_to_take_a_pawn_en_passant_if_it_would_expose_the_king_to_check(
+        ) {
+            todo!()
+        }
+
+        #[test]
+        fn it_should_not_be_possible_to_use_en_passant_if_the_king_is_in_check_and_en_passant_would_not_counter_it(
+        ) {
+            todo!()
         }
     }
 }

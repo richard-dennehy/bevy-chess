@@ -48,6 +48,14 @@ impl PieceColour {
             PieceColour::Black => PieceColour::White,
         }
     }
+
+    pub fn pawn_direction(&self) -> i8 {
+        if *self == PieceColour::Black {
+            -1
+        } else {
+            1
+        }
+    }
 }
 
 impl core::fmt::Display for PieceColour {
@@ -123,10 +131,11 @@ impl Piece {
             .collect(),
             PieceKind::Rook => straight_lines.collect(),
             PieceKind::Pawn => {
-                let (starting_row, final_row, direction) = if self.colour == PieceColour::White {
-                    (1, 7, 1)
+                let direction = self.colour.pawn_direction();
+                let (starting_row, final_row) = if self.colour == PieceColour::White {
+                    (1, 7)
                 } else {
-                    (6, 0, -1)
+                    (6, 0)
                 };
 
                 if x == final_row {

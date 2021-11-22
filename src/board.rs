@@ -13,6 +13,7 @@ impl Plugin for BoardPlugin {
             .init_resource::<PlayerTurn>()
             .init_resource::<AllValidMoves>()
             .init_resource::<Option<HighlightedSquare>>()
+            .init_resource::<Option<EnPassantData>>()
             .add_state(GameState::NewGame)
             .add_startup_system(create_board.system())
             .add_system(highlight_square_on_hover.system())
@@ -94,7 +95,8 @@ impl<'piece> FromIterator<&'piece Piece> for BoardState {
     }
 }
 
-struct Square {
+#[derive(Debug, PartialEq)]
+pub struct Square {
     pub x: u8,
     pub y: u8,
 }
@@ -105,12 +107,19 @@ impl Square {
     }
 }
 
-struct Taken;
+pub struct Taken;
 
 #[derive(Default)]
-struct SelectedSquare(Option<Entity>);
+pub struct SelectedSquare(pub Option<Entity>);
 #[derive(Default)]
-struct SelectedPiece(Option<Entity>);
+pub struct SelectedPiece(pub Option<Entity>);
+
+#[derive(Debug, PartialEq)]
+pub struct EnPassantData {
+    pub piece_id: Entity,
+    pub x: u8,
+    pub y: u8,
+}
 
 #[derive(Default)]
 pub struct AllValidMoves(HashMap<Entity, Vec<(u8, u8)>>);
@@ -188,27 +197,24 @@ fn create_board(
 ) {
     let mesh = meshes.add(Mesh::from(shape::Plane { size: 1.0 }));
 
-    (0..8)
-        .into_iter()
-        .map(|x| {
-            (0..8).into_iter().for_each(|y| {
-                let square = Square { x, y };
-                commands
-                    .spawn_bundle(PbrBundle {
-                        mesh: mesh.clone(),
-                        material: if square.is_white() {
-                            materials.white.clone()
-                        } else {
-                            materials.black.clone()
-                        },
-                        transform: Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32)),
-                        ..Default::default()
-                    })
-                    .insert_bundle(PickableBundle::default())
-                    .insert(square);
-            })
+    (0..8).for_each(|x| {
+        (0..8).for_each(|y| {
+            let square = Square { x, y };
+            commands
+                .spawn_bundle(PbrBundle {
+                    mesh: mesh.clone(),
+                    material: if square.is_white() {
+                        materials.white.clone()
+                    } else {
+                        materials.black.clone()
+                    },
+                    transform: Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32)),
+                    ..Default::default()
+                })
+                .insert_bundle(PickableBundle::default())
+                .insert(square);
         })
-        .collect()
+    })
 }
 
 // fixme this is highlighting the selected piece as well as its valid moves
@@ -282,15 +288,41 @@ fn highlight_square_on_hover(
 
 pub fn calculate_all_moves(
     player_turn: Res<PlayerTurn>,
+    en_passant_data: Res<Option<EnPassantData>>,
     mut all_moves: ResMut<AllValidMoves>,
     mut game_state: ResMut<State<GameState>>,
     pieces: Query<(Entity, &Piece)>,
 ) {
     let board_state = pieces.iter().map(|(_, piece)| piece).collect();
 
+    let (en_passant_left, en_passant_right) = if let Some(en_passant) = &*en_passant_data {
+        let left = pieces.iter().find_map(|(entity, piece)| {
+            (piece.y == en_passant.y - 1 && piece.colour == player_turn.0).then(|| entity)
+        });
+        let right = pieces.iter().find_map(|(entity, piece)| {
+            (piece.y == en_passant.y + 1 && piece.colour == player_turn.0).then(|| entity)
+        });
+
+        (left, right)
+    } else {
+        (None, None)
+    };
+
     // note: this calculates all potential moves for both sides - this makes it easier to check for check(mate)
     pieces.for_each(|(entity, piece)| {
-        let valid_moves = piece.valid_moves(&board_state);
+        let mut valid_moves = piece.valid_moves(&board_state);
+
+        let direction = piece.colour.pawn_direction();
+        if let Some(left) = en_passant_left {
+            if entity == left {
+                valid_moves.push((piece.x + 1, (piece.y as i8 + direction) as u8));
+            }
+        } else if let Some(right) = en_passant_right {
+            if entity == right {
+                valid_moves.push((piece.x - 1, (piece.y as i8 + direction) as u8));
+            }
+        };
+
         let _ = all_moves.insert(entity, valid_moves);
     });
 
@@ -308,7 +340,10 @@ pub fn calculate_all_moves(
     let pieces_threatening_king = opposite_pieces
         .iter()
         .filter_map(|(entity, _)| {
-            all_moves.get(*entity).contains(&(king.x, king.y)).then(|| pieces.get(*entity).unwrap().1)
+            all_moves
+                .get(*entity)
+                .contains(&(king.x, king.y))
+                .then(|| pieces.get(*entity).unwrap().1)
         })
         .collect::<Vec<_>>();
 
@@ -364,27 +399,23 @@ pub fn calculate_all_moves(
     if !pieces_threatening_king.is_empty() {
         let counter_moves: Vec<(Entity, Vec<(u8, u8)>)> =
             std::iter::once((king_entity, safe_king_moves))
-                .chain(
-                    safe_player_moves
+                .chain(safe_player_moves.iter().map(|(entity, safe_moves)| {
+                    // this piece can only move if it can take or block the piece that has the king in check
+                    let counter_moves = safe_moves
                         .iter()
-                        .map(|(entity, safe_moves)| {
-                            // this piece can only move if it can take or block the piece that has the king in check
-                            let counter_moves = safe_moves
-                                .iter()
-                                .filter(|(move_x, move_y)| {
-                                    pieces_threatening_king.iter().all(|opposite_piece| {
-                                        (opposite_piece.x == *move_x && opposite_piece.y == *move_y)
-                                            || opposite_piece
-                                                .path_to_take_piece_at((king.x, king.y))
-                                                .contains(&(*move_x, *move_y))
-                                    })
-                                })
-                                .copied()
-                                .collect::<Vec<_>>();
+                        .filter(|(move_x, move_y)| {
+                            pieces_threatening_king.iter().all(|opposite_piece| {
+                                (opposite_piece.x == *move_x && opposite_piece.y == *move_y)
+                                    || opposite_piece
+                                        .path_to_take_piece_at((king.x, king.y))
+                                        .contains(&(*move_x, *move_y))
+                            })
+                        })
+                        .copied()
+                        .collect::<Vec<_>>();
 
-                            (**entity, counter_moves)
-                        }),
-                )
+                    (**entity, counter_moves)
+                }))
                 .collect();
 
         if counter_moves.iter().all(|(_, moves)| moves.is_empty()) {
@@ -465,11 +496,12 @@ fn select_piece(
         .unwrap_or_else(|| game_state.set(GameState::NothingSelected).unwrap());
 }
 
-fn move_piece(
+pub fn move_piece(
     mut commands: Commands,
     selected_square: Res<SelectedSquare>,
     selected_piece: Res<SelectedPiece>,
     all_valid_moves: Res<AllValidMoves>,
+    mut en_passant_data: ResMut<Option<EnPassantData>>,
     mut game_state: ResMut<State<GameState>>,
     squares: Query<&Square>,
     mut pieces: Query<(Entity, &mut Piece)>,
@@ -480,17 +512,32 @@ fn move_piece(
         return;
     };
 
-    if let Some(piece) = selected_piece.0 {
-        let valid_moves = all_valid_moves.get(piece);
+    if let Some(piece_id) = selected_piece.0 {
+        let valid_moves = all_valid_moves.get(piece_id);
         if valid_moves.contains(&(square.x, square.y)) {
+            let (_, piece) = pieces.get_mut(piece_id).unwrap();
+            if piece.kind == PieceKind::Pawn {
+                if let Some(en_passant) = en_passant_data.take() {
+                    if piece.x != square.x {
+                        commands.entity(en_passant.piece_id).insert(Taken);
+                    }
+                } else if piece.x.abs_diff(square.x) == 2 {
+                    let _ = en_passant_data.insert(EnPassantData {
+                        piece_id,
+                        x: square.x,
+                        y: square.y,
+                    });
+                }
+            }
+
             pieces
                 .iter_mut()
-                .filter(|(_, other)| other.x == square.x && other.y == square.y)
-                .for_each(|(other_entity, _)| {
+                .find(|(_, other)| other.x == square.x && other.y == square.y)
+                .map(|(other_entity, _)| {
                     commands.entity(other_entity).insert(Taken);
                 });
 
-            commands.entity(piece).insert(MovePiece {
+            commands.entity(piece_id).insert(MovePiece {
                 target_x: square.x as f32,
                 target_y: square.y as f32,
             });

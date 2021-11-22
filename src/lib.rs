@@ -1,4 +1,5 @@
 #![feature(option_result_contains)]
+#![feature(int_abs_diff)]
 
 #[cfg(test)]
 mod tests;
