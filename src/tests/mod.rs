@@ -65,7 +65,7 @@ mod board_tests {
 
     mod checking_for_check {
         use super::*;
-        use crate::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn};
+        use crate::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn, EnPassantData};
         use bevy::prelude::*;
 
         fn setup() -> (World, SystemStage) {
@@ -74,6 +74,7 @@ mod board_tests {
             world.insert_resource(AllValidMoves::default());
             world.insert_resource(PlayerTurn(PieceColour::Black));
             world.insert_resource(State::new(GameState::NothingSelected));
+            world.insert_resource::<Option<EnPassantData>>(None);
 
             let mut update_stage = SystemStage::parallel();
             update_stage.add_system_set(State::<GameState>::get_driver());
@@ -854,7 +855,124 @@ mod board_tests {
         #[test]
         fn when_a_pawn_makes_a_two_step_move_an_adjacent_pawn_cannot_take_it_en_passant_if_a_turn_has_passed(
         ) {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            let black_king = world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            let white_king = world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::White,
+                x: 0,
+                y: 4,
+            }).id();
+
+            let black_pawn = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x: 6,
+                    y: 4,
+                })
+                .id();
+
+            let white_pawn = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::White,
+                    x: 4,
+                    y: 3,
+                })
+                .id();
+
+            stage.run(&mut world);
+
+            // turn 0 move black pawn 2 steps forward
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
+
+            world.check_and_overwrite_state(
+                GameState::NothingSelected,
+                GameState::TargetSquareSelected,
+            );
+            world.overwrite_resource(SelectedPiece(Some(black_pawn)));
+            let square = world.square(4, 4);
+            world.overwrite_resource(SelectedSquare(Some(square)));
+
+            stage.run(&mut world);
+
+            let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
+            assert_eq!(
+                en_passant_data,
+                &Some(EnPassantData {
+                    piece_id: black_pawn,
+                    x: 4,
+                    y: 4,
+                })
+            );
+
+            world.check_and_overwrite_state(GameState::MovingPiece, GameState::NothingSelected);
+            let mut moved = world.get_mut::<Piece>(black_pawn).unwrap();
+            moved.x = 4;
+            moved.y = 4;
+
+            world.get_resource_mut::<PlayerTurn>().unwrap().next();
+
+            // turn 1 move white king
+
+            stage.run(&mut world);
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3), (5, 4)]);
+
+            world.check_and_overwrite_state(
+                GameState::NothingSelected,
+                GameState::TargetSquareSelected,
+            );
+            world.overwrite_resource(SelectedPiece(Some(white_king)));
+            let square = world.square(1, 4);
+            world.overwrite_resource(SelectedSquare(Some(square)));
+
+            stage.run(&mut world);
+
+            world.check_and_overwrite_state(GameState::MovingPiece, GameState::NothingSelected);
+            world.get_resource_mut::<PlayerTurn>().unwrap().next();
+            let mut moved = world.get_mut::<Piece>(white_king).unwrap();
+            moved.x = 1;
+            moved.y = 4;
+
+            // turn 2 move black king
+
+            stage.run(&mut world);
+
+            world.check_and_overwrite_state(
+                GameState::NothingSelected,
+                GameState::TargetSquareSelected,
+            );
+            world.overwrite_resource(SelectedPiece(Some(black_king)));
+            let square = world.square(6, 4);
+            world.overwrite_resource(SelectedSquare(Some(square)));
+
+            stage.run(&mut world);
+
+            world.check_and_overwrite_state(GameState::MovingPiece, GameState::NothingSelected);
+            world.get_resource_mut::<PlayerTurn>().unwrap().next();
+            let mut moved = world.get_mut::<Piece>(black_king).unwrap();
+            moved.x = 6;
+            moved.y = 4;
+
+            stage.run(&mut world);
+
+            // turn 3 - check white pawn can't still move en passant
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3)]);
         }
 
         #[test]

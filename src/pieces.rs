@@ -201,8 +201,8 @@ impl Piece {
             return range.skip(1).all(|x| board.get(x, start_y).is_none());
         }
 
-        let x_diff = (start_x as i8 - end_x as i8).abs();
-        let y_diff = (start_y as i8 - end_y as i8).abs();
+        let x_diff = start_x.abs_diff(end_x);
+        let y_diff = start_y.abs_diff(end_y);
 
         // diagonal - this condition should always be true if it is reached
         if x_diff == y_diff {

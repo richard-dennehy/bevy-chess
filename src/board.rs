@@ -516,8 +516,10 @@ pub fn move_piece(
         let valid_moves = all_valid_moves.get(piece_id);
         if valid_moves.contains(&(square.x, square.y)) {
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
+            let en_passant = en_passant_data.take();
+
             if piece.kind == PieceKind::Pawn {
-                if let Some(en_passant) = en_passant_data.take() {
+                if let Some(en_passant) = en_passant {
                     if piece.x == en_passant.x {
                         commands.entity(en_passant.piece_id).insert(Taken);
                     }
