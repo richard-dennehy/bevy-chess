@@ -342,28 +342,28 @@ fn move_pieces(
     time: Res<Time>,
     mut state: ResMut<State<GameState>>,
     mut turn: ResMut<PlayerTurn>,
-    query: Query<(Entity, &MovePiece, &mut Piece, &mut Transform)>,
+    mut query: Query<(Entity, &MovePiece, &mut Piece, &mut Transform)>,
 ) {
-    query.for_each_mut(|(piece_entity, move_piece, mut piece, mut transform)| {
-        let direction =
-            Vec3::new(move_piece.target_x, 0.0, move_piece.target_y) - transform.translation;
+    let (piece_entity, move_piece, mut piece, mut transform) = query.single_mut().unwrap();
 
-        if direction.length() > f32::EPSILON * 2.0 {
-            let delta = VELOCITY * (direction.normalize() * time.delta_seconds());
-            if delta.length() > direction.length() {
-                transform.translation += direction;
-            } else {
-                transform.translation += delta;
-            }
+    let direction =
+        Vec3::new(move_piece.target_x, 0.0, move_piece.target_y) - transform.translation;
+
+    if direction.length() > f32::EPSILON * 2.0 {
+        let delta = VELOCITY * (direction.normalize() * time.delta_seconds());
+        if delta.length() > direction.length() {
+            transform.translation += direction;
         } else {
-            piece.x = move_piece.target_x as u8;
-            piece.y = move_piece.target_y as u8;
-
-            commands.entity(piece_entity).remove::<MovePiece>();
-            turn.next();
-            state.set(GameState::NothingSelected).unwrap();
+            transform.translation += delta;
         }
-    });
+    } else {
+        piece.x = move_piece.target_x as u8;
+        piece.y = move_piece.target_y as u8;
+
+        commands.entity(piece_entity).remove::<MovePiece>();
+        turn.next();
+        state.set(GameState::NothingSelected).unwrap();
+    }
 }
 
 fn reset_pieces(

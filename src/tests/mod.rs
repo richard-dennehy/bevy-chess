@@ -692,10 +692,7 @@ mod board_tests {
 
     mod special_moves {
         use super::*;
-        use crate::board::{
-            calculate_all_moves, move_piece, AllValidMoves, EnPassantData, GameState, PlayerTurn,
-            SelectedPiece, SelectedSquare, Square, Taken,
-        };
+        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, EnPassantData, GameState, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken, MovePiece};
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
 
@@ -758,8 +755,42 @@ mod board_tests {
                 SystemSet::on_update(GameState::TargetSquareSelected)
                     .with_system(move_piece.system()),
             );
+            update_stage.add_system_set(
+                SystemSet::on_update(GameState::MovingPiece)
+                    .with_system(fake_piece_movement.system())
+                    .with_system(fake_despawn.system())
+            );
 
             (world, update_stage)
+        }
+
+        fn fake_piece_movement(
+            mut commands: Commands,
+            mut state: ResMut<State<GameState>>,
+            mut turn: ResMut<PlayerTurn>,
+            query: Query<(Entity, &MovePiece, &mut Piece)>
+        ) {
+            assert_eq!(state.current(), &GameState::MovingPiece);
+
+            query.for_each_mut(|(piece_entity, move_piece, mut piece)| {
+                piece.x = move_piece.target_x as u8;
+                piece.y = move_piece.target_y as u8;
+
+                commands.entity(piece_entity).remove::<MovePiece>();
+            });
+
+            turn.next();
+            state.set(GameState::NothingSelected).unwrap();
+        }
+
+        fn fake_despawn(
+            mut commands: Commands,
+            query: Query<Entity, With<Taken>>
+        ) {
+            // leave entity with Taken component so it can be asserted against, but remove from board so it doesn't get in the way
+            query.for_each_mut(|entity| {
+                commands.entity(entity).remove::<Piece>();
+            })
         }
 
         #[test]
@@ -825,8 +856,7 @@ mod board_tests {
                 })
             );
 
-            world.check_and_overwrite_state(GameState::MovingPiece, GameState::NothingSelected);
-            world.get_resource_mut::<PlayerTurn>().unwrap().next();
+            assert_eq!(world.get_resource::<State<GameState>>().unwrap().current(), &GameState::NothingSelected);
 
             stage.run(&mut world);
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
@@ -841,9 +871,6 @@ mod board_tests {
             world.overwrite_resource(SelectedSquare(Some(square)));
 
             stage.run(&mut world);
-
-            let state = world.get_resource::<State<GameState>>().unwrap();
-            assert_eq!(state.current(), &GameState::MovingPiece);
 
             assert!(world
                 .get_resource::<Option<EnPassantData>>()
@@ -918,13 +945,6 @@ mod board_tests {
                 })
             );
 
-            world.check_and_overwrite_state(GameState::MovingPiece, GameState::NothingSelected);
-            let mut moved = world.get_mut::<Piece>(black_pawn).unwrap();
-            moved.x = 4;
-            moved.y = 4;
-
-            world.get_resource_mut::<PlayerTurn>().unwrap().next();
-
             // turn 1 move white king
 
             stage.run(&mut world);
@@ -941,12 +961,6 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            world.check_and_overwrite_state(GameState::MovingPiece, GameState::NothingSelected);
-            world.get_resource_mut::<PlayerTurn>().unwrap().next();
-            let mut moved = world.get_mut::<Piece>(white_king).unwrap();
-            moved.x = 1;
-            moved.y = 4;
-
             // turn 2 move black king
 
             stage.run(&mut world);
@@ -960,12 +974,6 @@ mod board_tests {
             world.overwrite_resource(SelectedSquare(Some(square)));
 
             stage.run(&mut world);
-
-            world.check_and_overwrite_state(GameState::MovingPiece, GameState::NothingSelected);
-            world.get_resource_mut::<PlayerTurn>().unwrap().next();
-            let mut moved = world.get_mut::<Piece>(black_king).unwrap();
-            moved.x = 6;
-            moved.y = 4;
 
             stage.run(&mut world);
 
