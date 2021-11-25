@@ -65,7 +65,9 @@ mod board_tests {
 
     mod checking_for_check {
         use super::*;
-        use crate::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn, EnPassantData};
+        use crate::board::{
+            calculate_all_moves, AllValidMoves, EnPassantData, GameState, PlayerTurn,
+        };
         use bevy::prelude::*;
 
         fn setup() -> (World, SystemStage) {
@@ -377,6 +379,60 @@ mod board_tests {
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(king_id), &vec![(6, 4)]);
+        }
+
+        #[test]
+        fn should_not_allow_the_king_to_take_a_piece_if_it_would_leave_the_king_in_check() {
+            let (mut world, mut update_stage) = setup();
+
+            let black_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 3,
+                    y: 3,
+                })
+                .id();
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::White,
+                    x: 2,
+                    y: 4,
+                });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 7,
+                y: 4,
+            });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 0,
+                y: 2,
+            });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 4,
+                y: 0,
+            });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 2,
+                y: 0,
+            });
+
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(black_king), &vec![]);
+            assert_eq!(world.get_resource::<State<GameState>>().unwrap().current(), &GameState::Checkmate(PieceColour::Black));
         }
 
         #[test]
@@ -692,7 +748,10 @@ mod board_tests {
 
     mod special_moves {
         use super::*;
-        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, EnPassantData, GameState, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken, MovePiece};
+        use crate::board::{
+            calculate_all_moves, move_piece, AllValidMoves, EnPassantData, GameState, MovePiece,
+            PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken,
+        };
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
 
@@ -758,7 +817,7 @@ mod board_tests {
             update_stage.add_system_set(
                 SystemSet::on_update(GameState::MovingPiece)
                     .with_system(fake_piece_movement.system())
-                    .with_system(fake_despawn.system())
+                    .with_system(fake_despawn.system()),
             );
 
             (world, update_stage)
@@ -768,7 +827,7 @@ mod board_tests {
             mut commands: Commands,
             mut state: ResMut<State<GameState>>,
             mut turn: ResMut<PlayerTurn>,
-            query: Query<(Entity, &MovePiece, &mut Piece)>
+            query: Query<(Entity, &MovePiece, &mut Piece)>,
         ) {
             assert_eq!(state.current(), &GameState::MovingPiece);
 
@@ -783,10 +842,7 @@ mod board_tests {
             state.set(GameState::NothingSelected).unwrap();
         }
 
-        fn fake_despawn(
-            mut commands: Commands,
-            query: Query<Entity, With<Taken>>
-        ) {
+        fn fake_despawn(mut commands: Commands, query: Query<Entity, With<Taken>>) {
             // leave entity with Taken component so it can be asserted against, but remove from board so it doesn't get in the way
             query.for_each_mut(|entity| {
                 commands.entity(entity).remove::<Piece>();
@@ -856,7 +912,10 @@ mod board_tests {
                 })
             );
 
-            assert_eq!(world.get_resource::<State<GameState>>().unwrap().current(), &GameState::NothingSelected);
+            assert_eq!(
+                world.get_resource::<State<GameState>>().unwrap().current(),
+                &GameState::NothingSelected
+            );
 
             stage.run(&mut world);
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
@@ -884,19 +943,25 @@ mod board_tests {
         ) {
             let (mut world, mut stage) = setup();
 
-            let black_king = world.spawn().insert(Piece {
-                kind: PieceKind::King,
-                colour: PieceColour::Black,
-                x: 7,
-                y: 4,
-            }).id();
+            let black_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
 
-            let white_king = world.spawn().insert(Piece {
-                kind: PieceKind::King,
-                colour: PieceColour::White,
-                x: 0,
-                y: 4,
-            }).id();
+            let white_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 4,
+                })
+                .id();
 
             let black_pawn = world
                 .spawn()
@@ -985,7 +1050,107 @@ mod board_tests {
 
         #[test]
         fn it_should_be_possible_to_take_a_pawn_with_the_king_in_check_using_en_passant() {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                });
+
+            let white_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::White,
+                    x: 3,
+                    y: 3,
+                })
+                .id();
+
+            let black_pawn = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x: 6,
+                    y: 4,
+                })
+                .id();
+
+            let white_pawn = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::White,
+                    x: 4,
+                    y: 5,
+                })
+                .id();
+
+            // prevent the white king from being able to move
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 0,
+                y: 4,
+            });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 0,
+                y: 2,
+            });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 0,
+            });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 2,
+                y: 0,
+            });
+
+
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
+
+            world.check_and_overwrite_state(
+                GameState::NothingSelected,
+                GameState::TargetSquareSelected,
+            );
+            world.overwrite_resource(SelectedPiece(Some(black_pawn)));
+            let square = world.square(4, 4);
+            world.overwrite_resource(SelectedSquare(Some(square)));
+
+            stage.run(&mut world);
+
+            let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
+            assert_eq!(
+                en_passant_data,
+                &Some(EnPassantData {
+                    piece_id: black_pawn,
+                    x: 4,
+                    y: 4,
+                })
+            );
+
+            assert_eq!(
+                world.get_resource::<State<GameState>>().unwrap().current(),
+                &GameState::NothingSelected
+            );
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(white_king), &vec![]);
+            assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 4)]);
         }
 
         #[test]

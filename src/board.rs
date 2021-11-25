@@ -56,7 +56,7 @@ impl Plugin for BoardPlugin {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BoardState {
     squares: [Option<PieceColour>; 64],
 }
@@ -297,10 +297,24 @@ pub fn calculate_all_moves(
 
     let (en_passant_left, en_passant_right) = if let Some(en_passant) = &*en_passant_data {
         let left = pieces.iter().find_map(|(entity, piece)| {
-            (piece.y == en_passant.y - 1 && piece.colour == player_turn.0).then(|| entity)
+            (piece.kind == PieceKind::Pawn
+                && piece.y == en_passant.y - 1
+                && piece.colour == player_turn.0)
+                .then(|| {
+                    let direction = piece.colour.pawn_direction();
+                    let ep_move = ((piece.x as i8 + direction) as u8, piece.y + 1);
+                    (entity, ep_move)
+                })
         });
         let right = pieces.iter().find_map(|(entity, piece)| {
-            (piece.y == en_passant.y + 1 && piece.colour == player_turn.0).then(|| entity)
+            (piece.kind == PieceKind::Pawn
+                && piece.y == en_passant.y + 1
+                && piece.colour == player_turn.0)
+                .then(|| {
+                    let direction = piece.colour.pawn_direction();
+                    let ep_move = ((piece.x as i8 + direction) as u8, piece.y - 1);
+                    (entity, ep_move)
+                })
         });
 
         (left, right)
@@ -312,14 +326,13 @@ pub fn calculate_all_moves(
     pieces.for_each(|(entity, piece)| {
         let mut valid_moves = piece.valid_moves(&board_state);
 
-        let direction = piece.colour.pawn_direction();
-        if let Some(left) = en_passant_left {
+        if let Some((left, ep_move)) = en_passant_left {
             if entity == left {
-                valid_moves.push((piece.x + 1, (piece.y as i8 + direction) as u8));
+                valid_moves.push(ep_move);
             }
-        } else if let Some(right) = en_passant_right {
+        } else if let Some((right, ep_move)) = en_passant_right {
             if entity == right {
-                valid_moves.push((piece.x - 1, (piece.y as i8 + direction) as u8));
+                valid_moves.push(ep_move);
             }
         };
 
@@ -343,7 +356,7 @@ pub fn calculate_all_moves(
             all_moves
                 .get(*entity)
                 .contains(&(king.x, king.y))
-                .then(|| pieces.get(*entity).unwrap().1)
+                .then(|| pieces.get(*entity).unwrap())
         })
         .collect::<Vec<_>>();
 
@@ -352,9 +365,21 @@ pub fn calculate_all_moves(
         .get(king_entity)
         .into_iter()
         .filter(|(x, y)| {
-            !opposite_pieces
-                .iter()
-                .any(|(entity, _)| all_moves.get(*entity).contains(&(*x, *y)))
+            !opposite_pieces.iter().any(|(entity, piece)| {
+                // don't need to check which colour as `valid_moves` already handles same colour pieces
+                if board_state.get(*x, *y).is_some() {
+                    // awkward logic to check if any piece can move to the square once the current piece is taken
+                    piece
+                        .path_to_take_piece_at((*x, *y))
+                        .into_iter()
+                        .all(|(path_x, path_y)| {
+                            (path_x == *x && path_y == *y)
+                                || board_state.get(path_x, path_y).is_none()
+                        })
+                } else {
+                    all_moves.get(*entity).contains(&(*x, *y))
+                }
+            })
         })
         .copied()
         .collect::<Vec<_>>();
@@ -404,12 +429,32 @@ pub fn calculate_all_moves(
                     let counter_moves = safe_moves
                         .iter()
                         .filter(|(move_x, move_y)| {
-                            pieces_threatening_king.iter().all(|opposite_piece| {
-                                (opposite_piece.x == *move_x && opposite_piece.y == *move_y)
-                                    || opposite_piece
+                            pieces_threatening_king.iter().all(
+                                |(opposite_entity, opposite_piece)| {
+                                    let can_take_en_passant = en_passant_data
+                                        .as_ref()
+                                        .map_or(false, |e| e.piece_id == *opposite_entity)
+                                        && (en_passant_left
+                                            .as_ref()
+                                            .map_or(false, |(_, ep_move)| {
+                                                ep_move == &(*move_x, *move_y)
+                                            })
+                                            || en_passant_right
+                                                .as_ref()
+                                                .map_or(false, |(_, ep_move)| {
+                                                    ep_move == &(*move_x, *move_y)
+                                                }));
+
+                                    let can_take_directly =
+                                        opposite_piece.x == *move_x && opposite_piece.y == *move_y;
+
+                                    let blocks_piece = opposite_piece
                                         .path_to_take_piece_at((king.x, king.y))
-                                        .contains(&(*move_x, *move_y))
-                            })
+                                        .contains(&(*move_x, *move_y));
+
+                                    can_take_en_passant || can_take_directly || blocks_piece
+                                },
+                            )
                         })
                         .copied()
                         .collect::<Vec<_>>();
