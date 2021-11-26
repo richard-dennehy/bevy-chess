@@ -72,6 +72,12 @@ impl core::fmt::Display for PieceColour {
 }
 
 impl Piece {
+    // TODO
+    //   might be better off calculating list of potential moves and noting which moves are blocked
+    //   by other pieces (should only need the colour) - this would make it easier to check if moving
+    //   a piece would open up a path to the King, or if taking a piece with the King would leave it
+    //   in check.
+    //   Still need AllValidMoves, but need a function to convert from this return type to that
     pub fn valid_moves(&self, board: &BoardState) -> Vec<(u8, u8)> {
         let (x, y) = (self.x as i8, self.y as i8);
 

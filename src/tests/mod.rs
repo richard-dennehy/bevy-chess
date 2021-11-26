@@ -395,14 +395,12 @@ mod board_tests {
                 })
                 .id();
 
-            world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Pawn,
-                    colour: PieceColour::White,
-                    x: 2,
-                    y: 4,
-                });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Pawn,
+                colour: PieceColour::White,
+                x: 2,
+                y: 4,
+            });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
@@ -432,7 +430,10 @@ mod board_tests {
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(black_king), &vec![]);
-            assert_eq!(world.get_resource::<State<GameState>>().unwrap().current(), &GameState::Checkmate(PieceColour::Black));
+            assert_eq!(
+                world.get_resource::<State<GameState>>().unwrap().current(),
+                &GameState::Checkmate(PieceColour::Black)
+            );
         }
 
         #[test]
@@ -1052,14 +1053,12 @@ mod board_tests {
         fn it_should_be_possible_to_take_a_pawn_with_the_king_in_check_using_en_passant() {
             let (mut world, mut stage) = setup();
 
-            world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::King,
-                    colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
-                });
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            });
 
             let white_king = world
                 .spawn()
@@ -1117,7 +1116,6 @@ mod board_tests {
                 y: 0,
             });
 
-
             stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
@@ -1156,13 +1154,179 @@ mod board_tests {
         #[test]
         fn it_should_not_be_possible_to_take_a_pawn_en_passant_if_it_would_expose_the_king_to_check(
         ) {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::White,
+                x: 3,
+                y: 3,
+            });
+
+            let black_pawn = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x: 6,
+                    y: 4,
+                })
+                .id();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Pawn,
+                colour: PieceColour::White,
+                x: 4,
+                y: 3,
+            });
+
+            // prevent the white king from being able to move
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 0,
+                y: 4,
+            });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 0,
+                y: 2,
+            });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 4,
+                y: 0,
+            });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 2,
+                y: 0,
+            });
+
+            // prevents the pawn from moving
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                x: 0,
+                y: 3,
+            });
+
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
+
+            world.check_and_overwrite_state(
+                GameState::NothingSelected,
+                GameState::TargetSquareSelected,
+            );
+            world.overwrite_resource(SelectedPiece(Some(black_pawn)));
+            let square = world.square(4, 4);
+            world.overwrite_resource(SelectedSquare(Some(square)));
+
+            stage.run(&mut world);
+
+            let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
+            assert_eq!(
+                en_passant_data,
+                &Some(EnPassantData {
+                    piece_id: black_pawn,
+                    x: 4,
+                    y: 4,
+                })
+            );
+
+            assert_eq!(
+                world.get_resource::<State<GameState>>().unwrap().current(),
+                &GameState::Checkmate(PieceColour::White)
+            );
         }
 
         #[test]
         fn it_should_not_be_possible_to_use_en_passant_if_the_king_is_in_check_and_en_passant_would_not_counter_it(
         ) {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 0,
+            });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::White,
+                x: 4,
+                y: 2,
+            });
+
+            let black_pawn = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    x: 6,
+                    y: 4,
+                })
+                .id();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Bishop,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 5,
+            });
+
+            let white_pawn = world.spawn().insert(Piece {
+                kind: PieceKind::Pawn,
+                colour: PieceColour::White,
+                x: 4,
+                y: 3,
+            }).id();
+
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
+
+            world.check_and_overwrite_state(
+                GameState::NothingSelected,
+                GameState::TargetSquareSelected,
+            );
+            world.overwrite_resource(SelectedPiece(Some(black_pawn)));
+            let square = world.square(4, 4);
+            world.overwrite_resource(SelectedSquare(Some(square)));
+
+            stage.run(&mut world);
+
+            let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
+            assert_eq!(
+                en_passant_data,
+                &Some(EnPassantData {
+                    piece_id: black_pawn,
+                    x: 4,
+                    y: 4,
+                })
+            );
+
+            assert_eq!(
+                world.get_resource::<State<GameState>>().unwrap().current(),
+                &GameState::NothingSelected
+            );
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3)]);
         }
     }
 }
