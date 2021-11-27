@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy::utils::HashMap;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
 use std::fmt::Formatter;
+use std::ops::{Deref, DerefMut};
 
 pub struct BoardPlugin;
 impl Plugin for BoardPlugin {
@@ -14,6 +15,8 @@ impl Plugin for BoardPlugin {
             .init_resource::<AllValidMoves>()
             .init_resource::<Option<HighlightedSquare>>()
             .init_resource::<Option<EnPassantData>>()
+            .init_resource::<WhiteCastlingData>()
+            .init_resource::<BlackCastlingData>()
             .add_state(GameState::NewGame)
             .add_startup_system(create_board.system())
             .add_system(highlight_square_on_hover.system())
@@ -119,6 +122,46 @@ pub struct EnPassantData {
     pub piece_id: Entity,
     pub x: u8,
     pub y: u8,
+}
+
+#[derive(Default)]
+pub struct CastlingData {
+    pub king_moved: bool,
+    pub kingside_rook_moved: bool,
+    pub queenside_rook_moved: bool,
+}
+
+#[derive(Default)]
+pub struct WhiteCastlingData(CastlingData);
+#[derive(Default)]
+pub struct BlackCastlingData(CastlingData);
+
+impl Deref for WhiteCastlingData {
+    type Target = CastlingData;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for BlackCastlingData {
+    type Target = CastlingData;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for WhiteCastlingData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl DerefMut for BlackCastlingData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }
 
 #[derive(Default)]
@@ -289,6 +332,8 @@ fn highlight_square_on_hover(
 pub fn calculate_all_moves(
     player_turn: Res<PlayerTurn>,
     en_passant_data: Res<Option<EnPassantData>>,
+    white_castling_data: Res<WhiteCastlingData>,
+    black_castling_data: Res<BlackCastlingData>,
     mut all_moves: ResMut<AllValidMoves>,
     mut game_state: ResMut<State<GameState>>,
     pieces: Query<(Entity, &Piece)>,
@@ -320,6 +365,12 @@ pub fn calculate_all_moves(
         (left, right)
     } else {
         (None, None)
+    };
+
+    let castling_data = if player_turn.0 == PieceColour::White {
+        &**white_castling_data
+    } else {
+        &**black_castling_data
     };
 
     // note: this calculates all potential moves for both sides - this makes it easier to check for check(mate)
@@ -471,6 +522,41 @@ pub fn calculate_all_moves(
             let _ = all_moves.insert(entity, moves);
         });
     } else {
+        let mut safe_king_moves = safe_king_moves;
+        if !castling_data.king_moved {
+            if !castling_data.queenside_rook_moved {
+                // TODO check the third square inbetween is empty as well
+                let first_move = (king.x, king.y - 1);
+                let second_move = (king.x, king.y - 2);
+
+                if board_state.get(first_move.0, first_move.1).is_none()
+                    && board_state.get(second_move.0, second_move.1).is_none()
+                    && opposite_pieces.iter().all(|(entity, _)| {
+                        let moves = all_moves.get(*entity);
+                        !(moves.contains(&first_move) || moves.contains(&second_move))
+                    })
+                {
+                    safe_king_moves.push((king.x, 0));
+                }
+            }
+
+            if !castling_data.kingside_rook_moved {
+                let first_move = (king.x, king.y + 1);
+                let second_move = (king.x, king.y + 2);
+
+                if board_state.get(first_move.0, first_move.1).is_none()
+                    && board_state.get(second_move.0, second_move.1).is_none()
+                    && opposite_pieces.iter().all(|(entity, _)| {
+                        let moves = all_moves.get(*entity);
+                        !(moves.contains(&first_move)
+                            || moves.contains(&second_move))
+                    })
+                {
+                    safe_king_moves.push((king.x, 7));
+                }
+            }
+        }
+
         let _ = all_moves.insert(king_entity, safe_king_moves);
         safe_player_moves.into_iter().for_each(|(entity, moves)| {
             let _ = all_moves.insert(*entity, moves);
@@ -546,8 +632,11 @@ pub fn move_piece(
     selected_square: Res<SelectedSquare>,
     selected_piece: Res<SelectedPiece>,
     all_valid_moves: Res<AllValidMoves>,
+    player_turn: Res<PlayerTurn>,
     mut en_passant_data: ResMut<Option<EnPassantData>>,
     mut game_state: ResMut<State<GameState>>,
+    mut white_castling_data: ResMut<WhiteCastlingData>,
+    mut black_castling_data: ResMut<BlackCastlingData>,
     squares: Query<&Square>,
     mut pieces: Query<(Entity, &mut Piece)>,
 ) {
@@ -574,6 +663,44 @@ pub fn move_piece(
                         x: square.x,
                         y: square.y,
                     });
+                }
+            } else if piece.kind == PieceKind::King {
+                if ((player_turn.0 == PieceColour::White && !white_castling_data.king_moved)
+                    || (player_turn.0 == PieceColour::Black && !black_castling_data.king_moved))
+                    && (square.y == 0 || square.y == 7)
+                {
+                    let (rook_id, _) = pieces
+                        .iter_mut()
+                        .find(|(_, other)| other.x == square.x && other.y == square.y)
+                        .expect("castling without a rook");
+
+                    // move king by 2 towards rook
+                    commands.entity(piece_id).insert(MovePiece {
+                        target_x: square.x as f32,
+                        target_y: if square.y == 0 { 2.0 } else { 6.0 },
+                    });
+
+                    // move rook 1 past king
+                    commands.entity(rook_id).insert(MovePiece {
+                        target_x: square.x as f32,
+                        target_y: if square.y == 0 { 3.0 } else { 5.0 },
+                    });
+
+                    let mut castling_data = if player_turn.0 == PieceColour::White {
+                        &mut **white_castling_data
+                    } else {
+                        &mut **black_castling_data
+                    };
+
+                    castling_data.king_moved = true;
+                    if square.y == 0 {
+                        castling_data.queenside_rook_moved = true;
+                    } else {
+                        castling_data.kingside_rook_moved = true;
+                    };
+
+                    game_state.set(GameState::MovingPiece).unwrap();
+                    return;
                 }
             }
 
@@ -629,10 +756,16 @@ fn restart_game(input: Res<Input<KeyCode>>, mut state: ResMut<State<GameState>>)
     }
 }
 
-fn start_new_game(mut game_state: ResMut<State<GameState>>, mut turn: ResMut<PlayerTurn>) {
+fn start_new_game(
+    mut game_state: ResMut<State<GameState>>,
+    mut turn: ResMut<PlayerTurn>,
+    mut white_castling_data: ResMut<WhiteCastlingData>,
+    mut black_castling_data: ResMut<BlackCastlingData>,
+) {
     turn.0 = PieceColour::White;
-
     game_state.set(GameState::NothingSelected).unwrap();
+    **white_castling_data = CastlingData::default();
+    **black_castling_data = CastlingData::default();
 }
 
 struct SquareMaterials {

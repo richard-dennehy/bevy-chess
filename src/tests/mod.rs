@@ -750,8 +750,9 @@ mod board_tests {
     mod special_moves {
         use super::*;
         use crate::board::{
-            calculate_all_moves, move_piece, AllValidMoves, EnPassantData, GameState, MovePiece,
-            PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken,
+            calculate_all_moves, move_piece, AllValidMoves, BlackCastlingData, EnPassantData,
+            GameState, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken,
+            WhiteCastlingData,
         };
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
@@ -798,6 +799,8 @@ mod board_tests {
             world.insert_resource(SelectedSquare::default());
             world.insert_resource(SelectedPiece::default());
             world.insert_resource::<Option<EnPassantData>>(None);
+            world.insert_resource(BlackCastlingData::default());
+            world.insert_resource(WhiteCastlingData::default());
 
             (0..8).for_each(|x| {
                 (0..8).for_each(|y| {
@@ -1288,12 +1291,15 @@ mod board_tests {
                 y: 5,
             });
 
-            let white_pawn = world.spawn().insert(Piece {
-                kind: PieceKind::Pawn,
-                colour: PieceColour::White,
-                x: 4,
-                y: 3,
-            }).id();
+            let white_pawn = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::White,
+                    x: 4,
+                    y: 3,
+                })
+                .id();
 
             stage.run(&mut world);
 
@@ -1327,6 +1333,108 @@ mod board_tests {
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3)]);
+        }
+
+        #[test]
+        fn it_should_be_possible_to_castle_queenside_if_neither_the_king_nor_the_rook_have_moved() {
+            let (mut world, mut stage) = setup();
+
+            let black_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::White,
+                x: 0,
+                y: 3,
+            });
+
+            let black_rook = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 0,
+                })
+                .id();
+
+            let mut castling_data = world.get_resource_mut::<BlackCastlingData>().unwrap();
+            castling_data.kingside_rook_moved = true;
+
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(black_king),
+                &vec![(6, 3), (6, 4), (6, 5), (7, 3), (7, 5), (7, 0)]
+            );
+
+            world.check_and_overwrite_state(
+                GameState::NothingSelected,
+                GameState::TargetSquareSelected,
+            );
+            world.overwrite_resource(SelectedPiece(Some(black_king)));
+            let square = world.square(7, 0);
+            world.overwrite_resource(SelectedSquare(Some(square)));
+
+            stage.run(&mut world);
+
+            let black_king = world.get::<Piece>(black_king).unwrap();
+            assert_eq!(black_king.x, 7);
+            assert_eq!(black_king.y, 2);
+
+            let black_rook = world.get::<Piece>(black_rook).unwrap();
+            assert_eq!(black_rook.x, 7);
+            assert_eq!(black_rook.y, 3);
+        }
+
+        #[test]
+        fn it_should_be_possible_to_castle_kingside_if_neither_the_king_nor_the_rook_have_moved() {
+            todo!()
+        }
+
+        #[test]
+        fn it_should_not_be_possible_to_castle_if_the_king_has_moved() {
+            todo!()
+        }
+
+        #[test]
+        fn it_should_not_be_possible_to_castle_kingside_if_the_rook_has_moved() {
+            todo!()
+        }
+
+        #[test]
+        fn it_should_not_be_possible_to_castle_queenside_if_the_rook_has_moved() {
+            todo!()
+        }
+
+        #[test]
+        fn it_should_not_be_possible_to_castle_if_the_king_is_in_check() {
+            todo!()
+        }
+
+        #[test]
+        fn it_should_not_be_possible_to_castle_if_any_square_the_king_would_move_through_is_attacked(
+        ) {
+            todo!()
+        }
+
+        #[test]
+        fn it_should_not_be_possible_to_castle_if_any_square_in_between_is_occupied() {
+            todo!()
+        }
+
+        #[test]
+        fn it_should_not_be_possible_to_castle_if_the_rook_has_been_taken() {
+            todo!()
         }
     }
 }
