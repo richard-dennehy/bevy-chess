@@ -65,9 +65,7 @@ mod board_tests {
 
     mod checking_for_check {
         use super::*;
-        use crate::board::{
-            calculate_all_moves, AllValidMoves, EnPassantData, GameState, PlayerTurn,
-        };
+        use crate::board::{calculate_all_moves, AllValidMoves, EnPassantData, GameState, PlayerTurn, WhiteCastlingData, BlackCastlingData};
         use bevy::prelude::*;
 
         fn setup() -> (World, SystemStage) {
@@ -77,6 +75,8 @@ mod board_tests {
             world.insert_resource(PlayerTurn(PieceColour::Black));
             world.insert_resource(State::new(GameState::NothingSelected));
             world.insert_resource::<Option<EnPassantData>>(None);
+            world.insert_resource(WhiteCastlingData::default());
+            world.insert_resource(BlackCastlingData::default());
 
             let mut update_stage = SystemStage::parallel();
             update_stage.add_system_set(State::<GameState>::get_driver());
@@ -749,11 +749,7 @@ mod board_tests {
 
     mod special_moves {
         use super::*;
-        use crate::board::{
-            calculate_all_moves, move_piece, AllValidMoves, BlackCastlingData, EnPassantData,
-            GameState, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken,
-            WhiteCastlingData,
-        };
+        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, BlackCastlingData, EnPassantData, GameState, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken, WhiteCastlingData, CastlingData};
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
 
@@ -765,6 +761,7 @@ mod board_tests {
                 new_state: GameState,
             );
             fn square(&mut self, x: u8, y: u8) -> Entity;
+            fn move_piece(&mut self, piece_id: Entity, x: u8, y: u8);
         }
 
         impl WorldTestUtils for World {
@@ -787,6 +784,20 @@ mod board_tests {
                     .iter(self)
                     .find_map(|(entity, square)| (square.x == x && square.y == y).then(|| entity))
                     .unwrap()
+            }
+
+            fn move_piece(&mut self, piece_id: Entity, x: u8, y: u8) {
+                let all_valid_moves = self.get_resource::<AllValidMoves>().unwrap();
+                let piece_moves = all_valid_moves.get(piece_id);
+                assert!(piece_moves.contains(&(x, y)), "({}, {}) is not a valid move; valid moves: {:?}", x, y, piece_moves);
+
+                self.check_and_overwrite_state(
+                    GameState::NothingSelected,
+                    GameState::TargetSquareSelected,
+                );
+                self.overwrite_resource(SelectedPiece(Some(piece_id)));
+                let square = self.square(x, y);
+                self.overwrite_resource(SelectedSquare(Some(square)));
             }
         }
 
@@ -893,17 +904,8 @@ mod board_tests {
                 .id();
 
             stage.run(&mut world);
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
 
-            world.check_and_overwrite_state(
-                GameState::NothingSelected,
-                GameState::TargetSquareSelected,
-            );
-            world.overwrite_resource(SelectedPiece(Some(black_pawn)));
-            let square = world.square(4, 4);
-            world.overwrite_resource(SelectedSquare(Some(square)));
-
+            world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
             let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
@@ -922,17 +924,8 @@ mod board_tests {
             );
 
             stage.run(&mut world);
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3), (5, 4)]);
 
-            world.check_and_overwrite_state(
-                GameState::NothingSelected,
-                GameState::TargetSquareSelected,
-            );
-            world.overwrite_resource(SelectedPiece(Some(white_pawn)));
-            let square = world.square(5, 4);
-            world.overwrite_resource(SelectedSquare(Some(square)));
-
+            world.move_piece(white_pawn, 5, 4);
             stage.run(&mut world);
 
             assert!(world
@@ -990,18 +983,7 @@ mod board_tests {
             stage.run(&mut world);
 
             // turn 0 move black pawn 2 steps forward
-
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
-
-            world.check_and_overwrite_state(
-                GameState::NothingSelected,
-                GameState::TargetSquareSelected,
-            );
-            world.overwrite_resource(SelectedPiece(Some(black_pawn)));
-            let square = world.square(4, 4);
-            world.overwrite_resource(SelectedSquare(Some(square)));
-
+            world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
             let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
@@ -1020,34 +1002,14 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3), (5, 4)]);
 
-            world.check_and_overwrite_state(
-                GameState::NothingSelected,
-                GameState::TargetSquareSelected,
-            );
-            world.overwrite_resource(SelectedPiece(Some(white_king)));
-            let square = world.square(1, 4);
-            world.overwrite_resource(SelectedSquare(Some(square)));
-
+            world.move_piece(white_king, 1, 4);
             stage.run(&mut world);
 
             // turn 2 move black king
-
-            stage.run(&mut world);
-
-            world.check_and_overwrite_state(
-                GameState::NothingSelected,
-                GameState::TargetSquareSelected,
-            );
-            world.overwrite_resource(SelectedPiece(Some(black_king)));
-            let square = world.square(6, 4);
-            world.overwrite_resource(SelectedSquare(Some(square)));
-
-            stage.run(&mut world);
-
+            world.move_piece(black_king, 6, 4);
             stage.run(&mut world);
 
             // turn 3 - check white pawn can't still move en passant
-
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3)]);
         }
@@ -1121,17 +1083,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
-
-            world.check_and_overwrite_state(
-                GameState::NothingSelected,
-                GameState::TargetSquareSelected,
-            );
-            world.overwrite_resource(SelectedPiece(Some(black_pawn)));
-            let square = world.square(4, 4);
-            world.overwrite_resource(SelectedSquare(Some(square)));
-
+            world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
             let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
@@ -1226,17 +1178,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
-
-            world.check_and_overwrite_state(
-                GameState::NothingSelected,
-                GameState::TargetSquareSelected,
-            );
-            world.overwrite_resource(SelectedPiece(Some(black_pawn)));
-            let square = world.square(4, 4);
-            world.overwrite_resource(SelectedSquare(Some(square)));
-
+            world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
             let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
@@ -1301,19 +1243,20 @@ mod board_tests {
                 })
                 .id();
 
+            world.overwrite_resource(BlackCastlingData(CastlingData {
+                king_moved: true,
+                kingside_rook_moved: true,
+                queenside_rook_moved: true,
+            }));
+            world.overwrite_resource(WhiteCastlingData(CastlingData {
+                king_moved: true,
+                kingside_rook_moved: true,
+                queenside_rook_moved: true,
+            }));
+
             stage.run(&mut world);
 
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(black_pawn), &vec![(5, 4), (4, 4)]);
-
-            world.check_and_overwrite_state(
-                GameState::NothingSelected,
-                GameState::TargetSquareSelected,
-            );
-            world.overwrite_resource(SelectedPiece(Some(black_pawn)));
-            let square = world.square(4, 4);
-            world.overwrite_resource(SelectedSquare(Some(square)));
-
+            world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
             let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
@@ -1371,20 +1314,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(
-                all_valid_moves.get(black_king),
-                &vec![(6, 3), (6, 4), (6, 5), (7, 3), (7, 5), (7, 0)]
-            );
-
-            world.check_and_overwrite_state(
-                GameState::NothingSelected,
-                GameState::TargetSquareSelected,
-            );
-            world.overwrite_resource(SelectedPiece(Some(black_king)));
-            let square = world.square(7, 0);
-            world.overwrite_resource(SelectedSquare(Some(square)));
-
+            world.move_piece(black_king, 7, 0);
             stage.run(&mut world);
 
             let black_king = world.get::<Piece>(black_king).unwrap();
@@ -1398,12 +1328,129 @@ mod board_tests {
 
         #[test]
         fn it_should_be_possible_to_castle_kingside_if_neither_the_king_nor_the_rook_have_moved() {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            let white_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 4,
+                })
+                .id();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            });
+
+            let white_rook = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 7,
+                })
+                .id();
+
+            let mut castling_data = world.get_resource_mut::<WhiteCastlingData>().unwrap();
+            castling_data.queenside_rook_moved = true;
+
+            world.overwrite_resource(PlayerTurn(PieceColour::White));
+
+            stage.run(&mut world);
+
+            world.move_piece(white_king, 0, 7);
+            stage.run(&mut world);
+
+            let white_king = world.get::<Piece>(white_king).unwrap();
+            assert_eq!(white_king.x, 0);
+            assert_eq!(white_king.y, 6);
+
+            let white_rook = world.get::<Piece>(white_rook).unwrap();
+            assert_eq!(white_rook.x, 0);
+            assert_eq!(white_rook.y, 5);
         }
 
         #[test]
         fn it_should_not_be_possible_to_castle_if_the_king_has_moved() {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            let white_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 4,
+                })
+                .id();
+
+            let black_king = world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 7,
+                });
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 0,
+                });
+
+            world.overwrite_resource(PlayerTurn(PieceColour::White));
+            let mut castling_data = world.get_resource_mut::<BlackCastlingData>().unwrap();
+            castling_data.queenside_rook_moved = true;
+            castling_data.kingside_rook_moved = true;
+
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 0), (0, 7)]
+            );
+
+            world.move_piece(white_king, 0, 5);
+            stage.run(&mut world);
+
+            world.move_piece(black_king, 7, 5);
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 4), (0, 6), (1, 4), (1, 5), (1, 6)]
+            );
+
+            world.move_piece(white_king, 0, 4);
+            stage.run(&mut world);
+
+            world.move_piece(black_king, 7, 4);
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5)]
+            );
         }
 
         #[test]

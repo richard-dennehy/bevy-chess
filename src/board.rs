@@ -132,9 +132,9 @@ pub struct CastlingData {
 }
 
 #[derive(Default)]
-pub struct WhiteCastlingData(CastlingData);
+pub struct WhiteCastlingData(pub CastlingData);
 #[derive(Default)]
-pub struct BlackCastlingData(CastlingData);
+pub struct BlackCastlingData(pub CastlingData);
 
 impl Deref for WhiteCastlingData {
     type Target = CastlingData;
@@ -193,7 +193,6 @@ struct HighlightedSquare {
 pub enum GameState {
     // only exists to guarantee the "new turn" systems always run after resetting everything
     NewGame,
-    // todo should split this into once-per-turn state and actual "Nothing selected" state
     NothingSelected,
     SquareSelected,
     PieceSelected,
@@ -525,12 +524,13 @@ pub fn calculate_all_moves(
         let mut safe_king_moves = safe_king_moves;
         if !castling_data.king_moved {
             if !castling_data.queenside_rook_moved {
-                // TODO check the third square inbetween is empty as well
                 let first_move = (king.x, king.y - 1);
                 let second_move = (king.x, king.y - 2);
+                let passed_through = (king.x, king.y - 3);
 
                 if board_state.get(first_move.0, first_move.1).is_none()
                     && board_state.get(second_move.0, second_move.1).is_none()
+                    && board_state.get(passed_through.0, passed_through.1).is_none()
                     && opposite_pieces.iter().all(|(entity, _)| {
                         let moves = all_moves.get(*entity);
                         !(moves.contains(&first_move) || moves.contains(&second_move))
@@ -665,9 +665,16 @@ pub fn move_piece(
                     });
                 }
             } else if piece.kind == PieceKind::King {
-                if ((player_turn.0 == PieceColour::White && !white_castling_data.king_moved)
-                    || (player_turn.0 == PieceColour::Black && !black_castling_data.king_moved))
-                    && (square.y == 0 || square.y == 7)
+                let mut castling_data = if player_turn.0 == PieceColour::White {
+                    &mut **white_castling_data
+                } else {
+                    &mut **black_castling_data
+                };
+                let king_moved = castling_data.king_moved;
+
+                castling_data.king_moved = true;
+
+                if !king_moved && (square.y == 0 || square.y == 7)
                 {
                     let (rook_id, _) = pieces
                         .iter_mut()
@@ -686,13 +693,6 @@ pub fn move_piece(
                         target_y: if square.y == 0 { 3.0 } else { 5.0 },
                     });
 
-                    let mut castling_data = if player_turn.0 == PieceColour::White {
-                        &mut **white_castling_data
-                    } else {
-                        &mut **black_castling_data
-                    };
-
-                    castling_data.king_moved = true;
                     if square.y == 0 {
                         castling_data.queenside_rook_moved = true;
                     } else {
@@ -707,7 +707,24 @@ pub fn move_piece(
             pieces
                 .iter_mut()
                 .find(|(_, other)| other.x == square.x && other.y == square.y)
-                .map(|(other_entity, _)| {
+                .map(|(other_entity, piece)| {
+                    if piece.kind == PieceKind::Rook {
+                        // todo might be able to simplify this
+                        if player_turn.0 == PieceColour::White && piece.x == 7 {
+                            if piece.y == 0 {
+                                black_castling_data.queenside_rook_moved = true;
+                            } else if piece.y == 7 {
+                                black_castling_data.kingside_rook_moved = true;
+                            }
+                        } else if player_turn.0 == PieceColour::Black && piece.x == 0 {
+                            if piece.y == 0 {
+                                white_castling_data.queenside_rook_moved = true;
+                            } else if piece.y == 7 {
+                                white_castling_data.kingside_rook_moved = true;
+                            }
+                        }
+                    }
+
                     commands.entity(other_entity).insert(Taken);
                 });
 
