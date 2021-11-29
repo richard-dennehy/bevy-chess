@@ -791,6 +791,10 @@ mod board_tests {
                 let piece_moves = all_valid_moves.get(piece_id);
                 assert!(piece_moves.contains(&(x, y)), "({}, {}) is not a valid move; valid moves: {:?}", x, y, piece_moves);
 
+                let piece = self.get::<Piece>(piece_id).unwrap();
+                let turn = self.get_resource::<PlayerTurn>().unwrap();
+                assert_eq!(piece.colour, turn.0, "Moving {:?} piece on {:?}'s turn", piece.colour, turn.0);
+
                 self.check_and_overwrite_state(
                     GameState::NothingSelected,
                     GameState::TargetSquareSelected,
@@ -1455,33 +1459,327 @@ mod board_tests {
 
         #[test]
         fn it_should_not_be_possible_to_castle_kingside_if_the_rook_has_moved() {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            let white_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 4,
+                })
+                .id();
+
+            let black_king = world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            let white_kingside_rook = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 7,
+                }).id();
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 0,
+                });
+
+            world.overwrite_resource(PlayerTurn(PieceColour::White));
+            let mut castling_data = world.get_resource_mut::<BlackCastlingData>().unwrap();
+            castling_data.queenside_rook_moved = true;
+            castling_data.kingside_rook_moved = true;
+
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 0), (0, 7)]
+            );
+
+            world.move_piece(white_kingside_rook, 1, 7);
+            stage.run(&mut world);
+
+            world.move_piece(black_king, 7, 5);
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 0)]
+            );
+
+            world.move_piece(white_kingside_rook, 0, 7);
+            stage.run(&mut world);
+
+            world.move_piece(black_king, 7, 4);
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 0)]
+            );
         }
 
         #[test]
         fn it_should_not_be_possible_to_castle_queenside_if_the_rook_has_moved() {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            let white_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 4,
+                })
+                .id();
+
+            let black_king = world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 7,
+                });
+
+            let white_queenside_rook = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 0,
+                }).id();
+
+            world.overwrite_resource(PlayerTurn(PieceColour::White));
+            let mut castling_data = world.get_resource_mut::<BlackCastlingData>().unwrap();
+            castling_data.queenside_rook_moved = true;
+            castling_data.kingside_rook_moved = true;
+
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 0), (0, 7)]
+            );
+
+            world.move_piece(white_queenside_rook, 1, 0);
+            stage.run(&mut world);
+
+            world.move_piece(black_king, 7, 5);
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 7)]
+            );
+
+            world.move_piece(white_queenside_rook, 0, 0);
+            stage.run(&mut world);
+
+            world.move_piece(black_king, 7, 4);
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 7)]
+            );
         }
 
         #[test]
         fn it_should_not_be_possible_to_castle_if_the_king_is_in_check() {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            let white_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 4,
+                })
+                .id();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 7,
+                });
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 0,
+                });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::Black,
+                x: 2,
+                y: 5,
+            });
+
+            world.overwrite_resource(PlayerTurn(PieceColour::White));
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 3), (0, 5), (1, 4), (1, 5)]
+            );
         }
 
         #[test]
         fn it_should_not_be_possible_to_castle_if_any_square_the_king_would_move_through_is_attacked(
         ) {
-            todo!()
-        }
+            let (mut world, mut stage) = setup();
 
-        #[test]
-        fn it_should_not_be_possible_to_castle_if_any_square_in_between_is_occupied() {
-            todo!()
+            let white_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 4,
+                })
+                .id();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 7,
+                });
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 0,
+                });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::Black,
+                x: 2,
+                y: 2,
+            });
+
+            world.overwrite_resource(PlayerTurn(PieceColour::White));
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 5), (1, 3), (1, 5), (0, 7)]
+            );
         }
 
         #[test]
         fn it_should_not_be_possible_to_castle_if_the_rook_has_been_taken() {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            let white_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 4,
+                })
+                .id();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 7,
+                });
+
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::Rook,
+                    colour: PieceColour::White,
+                    x: 0,
+                    y: 0,
+                });
+
+            let black_knight = world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::Black,
+                x: 2,
+                y: 1,
+            }).id();
+
+            stage.run(&mut world);
+
+            world.move_piece(black_knight, 0, 0);
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_king),
+                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 7)]
+            );
         }
     }
 }

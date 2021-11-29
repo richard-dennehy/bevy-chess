@@ -702,6 +702,18 @@ pub fn move_piece(
                     game_state.set(GameState::MovingPiece).unwrap();
                     return;
                 }
+            } else if piece.kind == PieceKind::Rook {
+                let mut castling_data = if player_turn.0 == PieceColour::White {
+                    &mut **white_castling_data
+                } else {
+                    &mut **black_castling_data
+                };
+
+                if !castling_data.queenside_rook_moved && piece.y == 0 {
+                    castling_data.queenside_rook_moved = true;
+                } else if !castling_data.kingside_rook_moved && piece.y == 7 {
+                    castling_data.kingside_rook_moved = true;
+                }
             }
 
             pieces
