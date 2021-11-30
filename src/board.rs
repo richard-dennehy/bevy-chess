@@ -14,7 +14,7 @@ impl Plugin for BoardPlugin {
             .init_resource::<PlayerTurn>()
             .init_resource::<AllValidMoves>()
             .init_resource::<Option<HighlightedSquare>>()
-            .init_resource::<Option<EnPassantData>>()
+            .init_resource::<Option<LastPawnDoubleStep>>()
             .init_resource::<WhiteCastlingData>()
             .init_resource::<BlackCastlingData>()
             .add_state(GameState::NewGame)
@@ -118,8 +118,8 @@ pub struct SelectedSquare(pub Option<Entity>);
 pub struct SelectedPiece(pub Option<Entity>);
 
 #[derive(Debug, PartialEq)]
-pub struct EnPassantData {
-    pub piece_id: Entity,
+pub struct LastPawnDoubleStep {
+    pub pawn_id: Entity,
     pub x: u8,
     pub y: u8,
 }
@@ -328,22 +328,17 @@ fn highlight_square_on_hover(
     };
 }
 
-pub fn calculate_all_moves(
-    player_turn: Res<PlayerTurn>,
-    en_passant_data: Res<Option<EnPassantData>>,
-    white_castling_data: Res<WhiteCastlingData>,
-    black_castling_data: Res<BlackCastlingData>,
-    mut all_moves: ResMut<AllValidMoves>,
-    mut game_state: ResMut<State<GameState>>,
-    pieces: Query<(Entity, &Piece)>,
-) {
-    let board_state = pieces.iter().map(|(_, piece)| piece).collect();
-
-    let (en_passant_left, en_passant_right) = if let Some(en_passant) = &*en_passant_data {
+// todo remove bevy dependencies from these and extract into e.g. MoveCalculator
+fn find_en_passant_pieces(
+    last_pawn_double_step: &Option<LastPawnDoubleStep>,
+    player_turn: PieceColour,
+    pieces: &Query<(Entity, &Piece)>,
+) -> (Option<(Entity, (u8, u8))>, Option<(Entity, (u8, u8))>) {
+    if let Some(pawn_double_step) = last_pawn_double_step {
         let left = pieces.iter().find_map(|(entity, piece)| {
             (piece.kind == PieceKind::Pawn
-                && piece.y == en_passant.y - 1
-                && piece.colour == player_turn.0)
+                && piece.y == pawn_double_step.y - 1
+                && piece.colour == player_turn)
                 .then(|| {
                     let direction = piece.colour.pawn_direction();
                     let ep_move = ((piece.x as i8 + direction) as u8, piece.y + 1);
@@ -352,8 +347,8 @@ pub fn calculate_all_moves(
         });
         let right = pieces.iter().find_map(|(entity, piece)| {
             (piece.kind == PieceKind::Pawn
-                && piece.y == en_passant.y + 1
-                && piece.colour == player_turn.0)
+                && piece.y == pawn_double_step.y + 1
+                && piece.colour == player_turn)
                 .then(|| {
                     let direction = piece.colour.pawn_direction();
                     let ep_move = ((piece.x as i8 + direction) as u8, piece.y - 1);
@@ -364,7 +359,187 @@ pub fn calculate_all_moves(
         (left, right)
     } else {
         (None, None)
-    };
+    }
+}
+
+fn _calculate_potential_moves(
+    pieces: &Query<(Entity, &Piece)>,
+    board_state: &BoardState,
+    en_passant_left: Option<(Entity, (u8, u8))>,
+    en_passant_right: Option<(Entity, (u8, u8))>,
+) -> HashMap<Entity, Vec<(u8, u8)>> {
+    pieces
+        .iter()
+        .map(|(entity, piece)| {
+            let mut valid_moves = piece.valid_moves(&board_state);
+
+            if let Some((left, ep_move)) = en_passant_left {
+                if entity == left {
+                    valid_moves.push(ep_move);
+                }
+            } else if let Some((right, ep_move)) = en_passant_right {
+                if entity == right {
+                    valid_moves.push(ep_move);
+                }
+            };
+
+            (entity, valid_moves)
+        })
+        .collect()
+}
+
+/// moves that the king can make without leaving itself in check
+fn calculate_safe_king_moves(
+    all_moves: &AllValidMoves,
+    king_entity: Entity,
+    opposite_pieces: &[(Entity, &Piece)],
+    board_state: &BoardState,
+) -> Vec<(u8, u8)> {
+    all_moves
+        .get(king_entity)
+        .into_iter()
+        .filter(|(x, y)| {
+            !opposite_pieces.iter().any(|(entity, piece)| {
+                // don't need to check which colour as `valid_moves` already handles same colour pieces
+                if board_state.get(*x, *y).is_some() {
+                    // awkward logic to check if any piece can move to the square once the current piece is taken
+                    piece
+                        .path_to_take_piece_at((*x, *y))
+                        .into_iter()
+                        .all(|(path_x, path_y)| {
+                            (path_x == *x && path_y == *y)
+                                || board_state.get(path_x, path_y).is_none()
+                        })
+                } else {
+                    all_moves.get(*entity).contains(&(*x, *y))
+                }
+            })
+        })
+        .copied()
+        .collect()
+}
+
+/// pieces that could reach the king but are blocked by a single piece of the player colour
+fn calculate_potential_threats<'p>(
+    king: &Piece,
+    opposite_pieces: &[(Entity, &'p Piece)],
+    player_turn: PieceColour,
+    board_state: &BoardState,
+) -> Vec<(Entity, &'p Piece)> {
+    opposite_pieces
+        .iter()
+        .filter(|(_, piece)| {
+            let obstructions = piece
+                .path_to_take_piece_at((king.x, king.y))
+                .into_iter()
+                .filter_map(|(x, y)| board_state.get(x, y).as_ref())
+                .collect::<Vec<_>>();
+
+            // don't need to worry about pieces that are blocked by pieces of the same colour (as these can't be moved this turn) or pieces that are blocked by multiple pieces
+            !obstructions.contains(&&player_turn.opposite()) || obstructions.len() >= 2
+        })
+        .copied()
+        .collect()
+}
+
+/// moves that player pieces (excluding the king) can make without exposing the king to check
+fn calculate_safe_player_moves(
+    player_pieces: &[(Entity, &Piece)],
+    opposite_pieces: &[(Entity, &Piece)],
+    king_entity: Entity,
+    king: &Piece,
+    player_turn: PieceColour,
+    all_moves: &AllValidMoves,
+    board_state: &BoardState,
+) -> Vec<(Entity, Vec<(u8, u8)>)> {
+    let potential_threats =
+        calculate_potential_threats(king, opposite_pieces, player_turn, board_state);
+
+    player_pieces
+        .iter()
+        .filter(|(entity, _)| *entity != king_entity)
+        .map(|(entity, piece)| {
+            let safe_moves = all_moves
+                .get(*entity)
+                .iter()
+                .filter(|(x, y)| {
+                    // safe move iff: doesn't open up a path to the king, or stays within the same path, or takes the piece
+                    potential_threats.iter().all(|(_, threat)| {
+                        let path = threat.path_to_take_piece_at((king.x, king.y));
+                        !path.contains(&(piece.x, piece.y)) || path.contains(&(*x, *y))
+                    })
+                })
+                .copied()
+                .collect::<Vec<_>>();
+            (*entity, safe_moves)
+        })
+        .collect()
+}
+
+fn calculate_check_counter_moves(
+    king_entity: Entity,
+    king: &Piece,
+    safe_moves: Vec<(Entity, Vec<(u8, u8)>)>,
+    safe_king_moves: Vec<(u8, u8)>,
+    pieces_threatening_king: Vec<(Entity, &Piece)>,
+    last_pawn_double_step: &Option<LastPawnDoubleStep>,
+    en_passant_left: Option<(Entity, (u8, u8))>,
+    en_passant_right: Option<(Entity, (u8, u8))>,
+) -> Vec<(Entity, Vec<(u8, u8)>)> {
+    std::iter::once((king_entity, safe_king_moves))
+        .chain(safe_moves.iter().map(|(entity, safe_piece_moves)| {
+            // this piece can only move if it can take or block the piece that has the king in check
+            let counter_moves = safe_piece_moves
+                .iter()
+                .filter(|(move_x, move_y)| {
+                    pieces_threatening_king
+                        .iter()
+                        .all(|(opposite_entity, opposite_piece)| {
+                            // todo extract this or precalculate
+                            let is_en_passant_target = last_pawn_double_step
+                                .as_ref()
+                                .map_or(false, |e| e.pawn_id == *opposite_entity);
+                            let is_left_en_passant = en_passant_left
+                                .as_ref()
+                                .map_or(false, |(_, ep_move)| ep_move == &(*move_x, *move_y));
+                            let is_right_en_passant = en_passant_right
+                                .as_ref()
+                                .map_or(false, |(_, ep_move)| ep_move == &(*move_x, *move_y));
+
+                            let can_take_en_passant =
+                                is_en_passant_target && (is_left_en_passant || is_right_en_passant);
+
+                            let can_take_directly =
+                                opposite_piece.x == *move_x && opposite_piece.y == *move_y;
+
+                            let blocks_piece = opposite_piece
+                                .path_to_take_piece_at((king.x, king.y))
+                                .contains(&(*move_x, *move_y));
+
+                            can_take_en_passant || can_take_directly || blocks_piece
+                        })
+                })
+                .copied()
+                .collect::<Vec<_>>();
+
+            (*entity, counter_moves)
+        }))
+        .collect()
+}
+
+pub fn calculate_all_moves(
+    player_turn: Res<PlayerTurn>,
+    last_pawn_double_step: Res<Option<LastPawnDoubleStep>>,
+    white_castling_data: Res<WhiteCastlingData>,
+    black_castling_data: Res<BlackCastlingData>,
+    mut all_moves: ResMut<AllValidMoves>,
+    mut game_state: ResMut<State<GameState>>,
+    pieces: Query<(Entity, &Piece)>,
+) {
+    let board_state = pieces.iter().map(|(_, piece)| piece).collect();
+
+    let (en_passant_left, en_passant_right) =
+        find_en_passant_pieces(&last_pawn_double_step, player_turn.0, &pieces);
 
     let castling_data = if player_turn.0 == PieceColour::White {
         &**white_castling_data
@@ -410,108 +585,35 @@ pub fn calculate_all_moves(
         })
         .collect::<Vec<_>>();
 
-    // moves that the king can make without leaving itself in check
-    let safe_king_moves = all_moves
-        .get(king_entity)
-        .into_iter()
-        .filter(|(x, y)| {
-            !opposite_pieces.iter().any(|(entity, piece)| {
-                // don't need to check which colour as `valid_moves` already handles same colour pieces
-                if board_state.get(*x, *y).is_some() {
-                    // awkward logic to check if any piece can move to the square once the current piece is taken
-                    piece
-                        .path_to_take_piece_at((*x, *y))
-                        .into_iter()
-                        .all(|(path_x, path_y)| {
-                            (path_x == *x && path_y == *y)
-                                || board_state.get(path_x, path_y).is_none()
-                        })
-                } else {
-                    all_moves.get(*entity).contains(&(*x, *y))
-                }
-            })
-        })
-        .copied()
-        .collect::<Vec<_>>();
+    let safe_king_moves = calculate_safe_king_moves(
+        &all_moves,
+        king_entity,
+        opposite_pieces.as_slice(),
+        &board_state,
+    );
 
-    // pieces that could reach the king but are blocked by a single piece of the player colour
-    let potential_threats = opposite_pieces
-        .iter()
-        .filter(|(_, piece)| {
-            let obstructions = piece
-                .path_to_take_piece_at((king.x, king.y))
-                .into_iter()
-                .filter_map(|(x, y)| board_state.get(x, y).as_ref())
-                .collect::<Vec<_>>();
-
-            // don't need to worry about pieces that are blocked by pieces of the same colour (as these can't be moved this turn) or pieces that are blocked by multiple pieces
-            !obstructions.contains(&&player_turn.0.opposite()) || obstructions.len() >= 2
-        })
-        .collect::<Vec<_>>();
-
-    // moves that player pieces (excluding the king) can make without exposing the king to check
-    let safe_player_moves = player_pieces
-        .iter()
-        .filter(|(entity, _)| *entity != king_entity)
-        .map(|(entity, piece)| {
-            let safe_moves = all_moves
-                .get(*entity)
-                .iter()
-                .filter(|(x, y)| {
-                    // safe move iff: doesn't open up a path to the king, or stays within the same path, or takes the piece
-                    potential_threats.iter().all(|(_, threat)| {
-                        let path = threat.path_to_take_piece_at((king.x, king.y));
-                        !path.contains(&(piece.x, piece.y)) || path.contains(&(*x, *y))
-                    })
-                })
-                .copied()
-                .collect::<Vec<_>>();
-            (entity, safe_moves)
-        })
-        .collect::<Vec<_>>();
+    let safe_player_moves = calculate_safe_player_moves(
+        player_pieces.as_slice(),
+        opposite_pieces.as_slice(),
+        king_entity,
+        king,
+        player_turn.0,
+        &all_moves,
+        &board_state,
+    );
 
     // king is currently in check - only allow moves that protect the king
     if !pieces_threatening_king.is_empty() {
-        let counter_moves: Vec<(Entity, Vec<(u8, u8)>)> =
-            std::iter::once((king_entity, safe_king_moves))
-                .chain(safe_player_moves.iter().map(|(entity, safe_moves)| {
-                    // this piece can only move if it can take or block the piece that has the king in check
-                    let counter_moves = safe_moves
-                        .iter()
-                        .filter(|(move_x, move_y)| {
-                            pieces_threatening_king.iter().all(
-                                |(opposite_entity, opposite_piece)| {
-                                    let can_take_en_passant = en_passant_data
-                                        .as_ref()
-                                        .map_or(false, |e| e.piece_id == *opposite_entity)
-                                        && (en_passant_left
-                                            .as_ref()
-                                            .map_or(false, |(_, ep_move)| {
-                                                ep_move == &(*move_x, *move_y)
-                                            })
-                                            || en_passant_right
-                                                .as_ref()
-                                                .map_or(false, |(_, ep_move)| {
-                                                    ep_move == &(*move_x, *move_y)
-                                                }));
-
-                                    let can_take_directly =
-                                        opposite_piece.x == *move_x && opposite_piece.y == *move_y;
-
-                                    let blocks_piece = opposite_piece
-                                        .path_to_take_piece_at((king.x, king.y))
-                                        .contains(&(*move_x, *move_y));
-
-                                    can_take_en_passant || can_take_directly || blocks_piece
-                                },
-                            )
-                        })
-                        .copied()
-                        .collect::<Vec<_>>();
-
-                    (**entity, counter_moves)
-                }))
-                .collect();
+        let counter_moves = calculate_check_counter_moves(
+            king_entity,
+            king,
+            safe_player_moves,
+            safe_king_moves,
+            pieces_threatening_king,
+            &last_pawn_double_step,
+            en_passant_left,
+            en_passant_right
+        );
 
         if counter_moves.iter().all(|(_, moves)| moves.is_empty()) {
             game_state.set(GameState::Checkmate(player_turn.0)).unwrap();
@@ -530,7 +632,9 @@ pub fn calculate_all_moves(
 
                 if board_state.get(first_move.0, first_move.1).is_none()
                     && board_state.get(second_move.0, second_move.1).is_none()
-                    && board_state.get(passed_through.0, passed_through.1).is_none()
+                    && board_state
+                        .get(passed_through.0, passed_through.1)
+                        .is_none()
                     && opposite_pieces.iter().all(|(entity, _)| {
                         let moves = all_moves.get(*entity);
                         !(moves.contains(&first_move) || moves.contains(&second_move))
@@ -548,8 +652,7 @@ pub fn calculate_all_moves(
                     && board_state.get(second_move.0, second_move.1).is_none()
                     && opposite_pieces.iter().all(|(entity, _)| {
                         let moves = all_moves.get(*entity);
-                        !(moves.contains(&first_move)
-                            || moves.contains(&second_move))
+                        !(moves.contains(&first_move) || moves.contains(&second_move))
                     })
                 {
                     safe_king_moves.push((king.x, 7));
@@ -559,7 +662,7 @@ pub fn calculate_all_moves(
 
         let _ = all_moves.insert(king_entity, safe_king_moves);
         safe_player_moves.into_iter().for_each(|(entity, moves)| {
-            let _ = all_moves.insert(*entity, moves);
+            let _ = all_moves.insert(entity, moves);
         })
     }
 }
@@ -633,7 +736,7 @@ pub fn move_piece(
     selected_piece: Res<SelectedPiece>,
     all_valid_moves: Res<AllValidMoves>,
     player_turn: Res<PlayerTurn>,
-    mut en_passant_data: ResMut<Option<EnPassantData>>,
+    mut en_passant_data: ResMut<Option<LastPawnDoubleStep>>,
     mut game_state: ResMut<State<GameState>>,
     mut white_castling_data: ResMut<WhiteCastlingData>,
     mut black_castling_data: ResMut<BlackCastlingData>,
@@ -655,11 +758,11 @@ pub fn move_piece(
             if piece.kind == PieceKind::Pawn {
                 if let Some(en_passant) = en_passant {
                     if piece.x == en_passant.x {
-                        commands.entity(en_passant.piece_id).insert(Taken);
+                        commands.entity(en_passant.pawn_id).insert(Taken);
                     }
                 } else if piece.x.abs_diff(square.x) == 2 {
-                    let _ = en_passant_data.insert(EnPassantData {
-                        piece_id,
+                    let _ = en_passant_data.insert(LastPawnDoubleStep {
+                        pawn_id: piece_id,
                         x: square.x,
                         y: square.y,
                     });
@@ -674,8 +777,7 @@ pub fn move_piece(
 
                 castling_data.king_moved = true;
 
-                if !king_moved && (square.y == 0 || square.y == 7)
-                {
+                if !king_moved && (square.y == 0 || square.y == 7) {
                     let (rook_id, _) = pieces
                         .iter_mut()
                         .find(|(_, other)| other.x == square.x && other.y == square.y)

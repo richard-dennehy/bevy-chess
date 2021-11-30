@@ -65,7 +65,7 @@ mod board_tests {
 
     mod checking_for_check {
         use super::*;
-        use crate::board::{calculate_all_moves, AllValidMoves, EnPassantData, GameState, PlayerTurn, WhiteCastlingData, BlackCastlingData};
+        use crate::board::{calculate_all_moves, AllValidMoves, LastPawnDoubleStep, GameState, PlayerTurn, WhiteCastlingData, BlackCastlingData};
         use bevy::prelude::*;
 
         fn setup() -> (World, SystemStage) {
@@ -74,7 +74,7 @@ mod board_tests {
             world.insert_resource(AllValidMoves::default());
             world.insert_resource(PlayerTurn(PieceColour::Black));
             world.insert_resource(State::new(GameState::NothingSelected));
-            world.insert_resource::<Option<EnPassantData>>(None);
+            world.insert_resource::<Option<LastPawnDoubleStep>>(None);
             world.insert_resource(WhiteCastlingData::default());
             world.insert_resource(BlackCastlingData::default());
 
@@ -749,7 +749,7 @@ mod board_tests {
 
     mod special_moves {
         use super::*;
-        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, BlackCastlingData, EnPassantData, GameState, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken, WhiteCastlingData, CastlingData};
+        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, BlackCastlingData, LastPawnDoubleStep, GameState, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken, WhiteCastlingData, CastlingData};
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
 
@@ -813,7 +813,7 @@ mod board_tests {
             world.insert_resource(State::new(GameState::NothingSelected));
             world.insert_resource(SelectedSquare::default());
             world.insert_resource(SelectedPiece::default());
-            world.insert_resource::<Option<EnPassantData>>(None);
+            world.insert_resource::<Option<LastPawnDoubleStep>>(None);
             world.insert_resource(BlackCastlingData::default());
             world.insert_resource(WhiteCastlingData::default());
 
@@ -912,11 +912,11 @@ mod board_tests {
             world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
-            let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
+            let en_passant_data = world.get_resource::<Option<LastPawnDoubleStep>>().unwrap();
             assert_eq!(
                 en_passant_data,
-                &Some(EnPassantData {
-                    piece_id: black_pawn,
+                &Some(LastPawnDoubleStep {
+                    pawn_id: black_pawn,
                     x: 4,
                     y: 4,
                 })
@@ -933,7 +933,7 @@ mod board_tests {
             stage.run(&mut world);
 
             assert!(world
-                .get_resource::<Option<EnPassantData>>()
+                .get_resource::<Option<LastPawnDoubleStep>>()
                 .unwrap()
                 .is_none());
             assert!(world.get::<Taken>(black_pawn).is_some())
@@ -990,11 +990,11 @@ mod board_tests {
             world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
-            let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
+            let en_passant_data = world.get_resource::<Option<LastPawnDoubleStep>>().unwrap();
             assert_eq!(
                 en_passant_data,
-                &Some(EnPassantData {
-                    piece_id: black_pawn,
+                &Some(LastPawnDoubleStep {
+                    pawn_id: black_pawn,
                     x: 4,
                     y: 4,
                 })
@@ -1090,11 +1090,11 @@ mod board_tests {
             world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
-            let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
+            let en_passant_data = world.get_resource::<Option<LastPawnDoubleStep>>().unwrap();
             assert_eq!(
                 en_passant_data,
-                &Some(EnPassantData {
-                    piece_id: black_pawn,
+                &Some(LastPawnDoubleStep {
+                    pawn_id: black_pawn,
                     x: 4,
                     y: 4,
                 })
@@ -1185,11 +1185,11 @@ mod board_tests {
             world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
-            let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
+            let en_passant_data = world.get_resource::<Option<LastPawnDoubleStep>>().unwrap();
             assert_eq!(
                 en_passant_data,
-                &Some(EnPassantData {
-                    piece_id: black_pawn,
+                &Some(LastPawnDoubleStep {
+                    pawn_id: black_pawn,
                     x: 4,
                     y: 4,
                 })
@@ -1263,11 +1263,11 @@ mod board_tests {
             world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
-            let en_passant_data = world.get_resource::<Option<EnPassantData>>().unwrap();
+            let en_passant_data = world.get_resource::<Option<LastPawnDoubleStep>>().unwrap();
             assert_eq!(
                 en_passant_data,
-                &Some(EnPassantData {
-                    piece_id: black_pawn,
+                &Some(LastPawnDoubleStep {
+                    pawn_id: black_pawn,
                     x: 4,
                     y: 4,
                 })
