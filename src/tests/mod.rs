@@ -65,7 +65,7 @@ mod board_tests {
 
     mod checking_for_check {
         use super::*;
-        use crate::board::{calculate_all_moves, AllValidMoves, LastPawnDoubleStep, GameState, PlayerTurn, WhiteCastlingData, BlackCastlingData};
+        use crate::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn, SpecialMoveData};
         use bevy::prelude::*;
 
         fn setup() -> (World, SystemStage) {
@@ -74,9 +74,7 @@ mod board_tests {
             world.insert_resource(AllValidMoves::default());
             world.insert_resource(PlayerTurn(PieceColour::Black));
             world.insert_resource(State::new(GameState::NothingSelected));
-            world.insert_resource::<Option<LastPawnDoubleStep>>(None);
-            world.insert_resource(WhiteCastlingData::default());
-            world.insert_resource(BlackCastlingData::default());
+            world.insert_resource(SpecialMoveData::default());
 
             let mut update_stage = SystemStage::parallel();
             update_stage.add_system_set(State::<GameState>::get_driver());
@@ -749,7 +747,7 @@ mod board_tests {
 
     mod special_moves {
         use super::*;
-        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, BlackCastlingData, LastPawnDoubleStep, GameState, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken, WhiteCastlingData, CastlingData};
+        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, LastPawnDoubleStep, GameState, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken, CastlingData, SpecialMoveData};
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
 
@@ -813,9 +811,7 @@ mod board_tests {
             world.insert_resource(State::new(GameState::NothingSelected));
             world.insert_resource(SelectedSquare::default());
             world.insert_resource(SelectedPiece::default());
-            world.insert_resource::<Option<LastPawnDoubleStep>>(None);
-            world.insert_resource(BlackCastlingData::default());
-            world.insert_resource(WhiteCastlingData::default());
+            world.insert_resource(SpecialMoveData::default());
 
             (0..8).for_each(|x| {
                 (0..8).for_each(|y| {
@@ -912,9 +908,9 @@ mod board_tests {
             world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
-            let en_passant_data = world.get_resource::<Option<LastPawnDoubleStep>>().unwrap();
+            let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
             assert_eq!(
-                en_passant_data,
+                &special_moves.last_pawn_double_step,
                 &Some(LastPawnDoubleStep {
                     pawn_id: black_pawn,
                     x: 4,
@@ -933,8 +929,9 @@ mod board_tests {
             stage.run(&mut world);
 
             assert!(world
-                .get_resource::<Option<LastPawnDoubleStep>>()
+                .get_resource::<SpecialMoveData>()
                 .unwrap()
+                .last_pawn_double_step
                 .is_none());
             assert!(world.get::<Taken>(black_pawn).is_some())
         }
@@ -990,9 +987,9 @@ mod board_tests {
             world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
-            let en_passant_data = world.get_resource::<Option<LastPawnDoubleStep>>().unwrap();
+            let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
             assert_eq!(
-                en_passant_data,
+                &special_moves.last_pawn_double_step,
                 &Some(LastPawnDoubleStep {
                     pawn_id: black_pawn,
                     x: 4,
@@ -1090,9 +1087,9 @@ mod board_tests {
             world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
-            let en_passant_data = world.get_resource::<Option<LastPawnDoubleStep>>().unwrap();
+            let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
             assert_eq!(
-                en_passant_data,
+                &special_moves.last_pawn_double_step,
                 &Some(LastPawnDoubleStep {
                     pawn_id: black_pawn,
                     x: 4,
@@ -1185,9 +1182,9 @@ mod board_tests {
             world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
-            let en_passant_data = world.get_resource::<Option<LastPawnDoubleStep>>().unwrap();
+            let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
             assert_eq!(
-                en_passant_data,
+                &special_moves.last_pawn_double_step,
                 &Some(LastPawnDoubleStep {
                     pawn_id: black_pawn,
                     x: 4,
@@ -1247,25 +1244,28 @@ mod board_tests {
                 })
                 .id();
 
-            world.overwrite_resource(BlackCastlingData(CastlingData {
-                king_moved: true,
-                kingside_rook_moved: true,
-                queenside_rook_moved: true,
-            }));
-            world.overwrite_resource(WhiteCastlingData(CastlingData {
-                king_moved: true,
-                kingside_rook_moved: true,
-                queenside_rook_moved: true,
-            }));
+            world.overwrite_resource(SpecialMoveData {
+                black_castling_data: CastlingData {
+                    kingside_rook_moved: true,
+                    queenside_rook_moved: true,
+                    king_moved: true,
+                },
+                white_castling_data: CastlingData {
+                    kingside_rook_moved: true,
+                    queenside_rook_moved: true,
+                    king_moved: true,
+                },
+                ..Default::default()
+            });
 
             stage.run(&mut world);
 
             world.move_piece(black_pawn, 4, 4);
             stage.run(&mut world);
 
-            let en_passant_data = world.get_resource::<Option<LastPawnDoubleStep>>().unwrap();
+            let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
             assert_eq!(
-                en_passant_data,
+                &special_moves.last_pawn_double_step,
                 &Some(LastPawnDoubleStep {
                     pawn_id: black_pawn,
                     x: 4,
@@ -1313,8 +1313,8 @@ mod board_tests {
                 })
                 .id();
 
-            let mut castling_data = world.get_resource_mut::<BlackCastlingData>().unwrap();
-            castling_data.kingside_rook_moved = true;
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.kingside_rook_moved = true;
 
             stage.run(&mut world);
 
@@ -1361,8 +1361,8 @@ mod board_tests {
                 })
                 .id();
 
-            let mut castling_data = world.get_resource_mut::<WhiteCastlingData>().unwrap();
-            castling_data.queenside_rook_moved = true;
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.white_castling_data.queenside_rook_moved = true;
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
 
@@ -1420,9 +1420,9 @@ mod board_tests {
                 });
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
-            let mut castling_data = world.get_resource_mut::<BlackCastlingData>().unwrap();
-            castling_data.queenside_rook_moved = true;
-            castling_data.kingside_rook_moved = true;
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.queenside_rook_moved = true;
+            special_moves.black_castling_data.kingside_rook_moved = true;
 
             stage.run(&mut world);
 
@@ -1497,9 +1497,9 @@ mod board_tests {
                 });
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
-            let mut castling_data = world.get_resource_mut::<BlackCastlingData>().unwrap();
-            castling_data.queenside_rook_moved = true;
-            castling_data.kingside_rook_moved = true;
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.queenside_rook_moved = true;
+            special_moves.black_castling_data.kingside_rook_moved = true;
 
             stage.run(&mut world);
 
@@ -1574,9 +1574,9 @@ mod board_tests {
                 }).id();
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
-            let mut castling_data = world.get_resource_mut::<BlackCastlingData>().unwrap();
-            castling_data.queenside_rook_moved = true;
-            castling_data.kingside_rook_moved = true;
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.queenside_rook_moved = true;
+            special_moves.black_castling_data.kingside_rook_moved = true;
 
             stage.run(&mut world);
 

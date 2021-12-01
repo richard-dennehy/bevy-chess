@@ -56,6 +56,21 @@ impl PieceColour {
             1
         }
     }
+
+    // todo use these elsewhere
+    pub fn starting_front_row(&self) -> u8 {
+        match self {
+            PieceColour::White => 1,
+            PieceColour::Black => 6,
+        }
+    }
+
+    pub fn starting_back_row(&self) -> u8 {
+        match self {
+            PieceColour::White => 0,
+            PieceColour::Black => 7
+        }
+    }
 }
 
 impl core::fmt::Display for PieceColour {

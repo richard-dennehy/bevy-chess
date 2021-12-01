@@ -4,6 +4,8 @@
 #[cfg(test)]
 mod tests;
 
+mod moves_calculator;
+
 pub mod board;
 pub mod pieces;
 pub mod ui;

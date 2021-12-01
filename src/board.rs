@@ -3,7 +3,6 @@ use bevy::prelude::*;
 use bevy::utils::HashMap;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
 use std::fmt::Formatter;
-use std::ops::{Deref, DerefMut};
 
 pub struct BoardPlugin;
 impl Plugin for BoardPlugin {
@@ -14,9 +13,7 @@ impl Plugin for BoardPlugin {
             .init_resource::<PlayerTurn>()
             .init_resource::<AllValidMoves>()
             .init_resource::<Option<HighlightedSquare>>()
-            .init_resource::<Option<LastPawnDoubleStep>>()
-            .init_resource::<WhiteCastlingData>()
-            .init_resource::<BlackCastlingData>()
+            .init_resource::<SpecialMoveData>()
             .add_state(GameState::NewGame)
             .add_startup_system(create_board.system())
             .add_system(highlight_square_on_hover.system())
@@ -124,46 +121,39 @@ pub struct LastPawnDoubleStep {
     pub y: u8,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
+pub struct SpecialMoveData {
+    pub last_pawn_double_step: Option<LastPawnDoubleStep>,
+    pub white_castling_data: CastlingData,
+    pub black_castling_data: CastlingData,
+}
+
+impl SpecialMoveData {
+    fn castling_data(&self, turn: PieceColour) -> &CastlingData {
+        if turn == PieceColour::White {
+            &self.white_castling_data
+        } else {
+            &self.black_castling_data
+        }
+    }
+
+    fn castling_data_mut(&mut self, turn: PieceColour) -> &mut CastlingData {
+        if turn == PieceColour::White {
+            &mut self.white_castling_data
+        } else {
+            &mut self.black_castling_data
+        }
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct CastlingData {
     pub king_moved: bool,
     pub kingside_rook_moved: bool,
     pub queenside_rook_moved: bool,
 }
 
-#[derive(Default)]
-pub struct WhiteCastlingData(pub CastlingData);
-#[derive(Default)]
-pub struct BlackCastlingData(pub CastlingData);
-
-impl Deref for WhiteCastlingData {
-    type Target = CastlingData;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Deref for BlackCastlingData {
-    type Target = CastlingData;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for WhiteCastlingData {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl DerefMut for BlackCastlingData {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
+// todo circular dependency between move calculator and board module isn't ideal
 #[derive(Default)]
 pub struct AllValidMoves(HashMap<Entity, Vec<(u8, u8)>>);
 
@@ -529,23 +519,18 @@ fn calculate_check_counter_moves(
 
 pub fn calculate_all_moves(
     player_turn: Res<PlayerTurn>,
-    last_pawn_double_step: Res<Option<LastPawnDoubleStep>>,
-    white_castling_data: Res<WhiteCastlingData>,
-    black_castling_data: Res<BlackCastlingData>,
+    special_move_data: Res<SpecialMoveData>,
     mut all_moves: ResMut<AllValidMoves>,
     mut game_state: ResMut<State<GameState>>,
     pieces: Query<(Entity, &Piece)>,
 ) {
     let board_state = pieces.iter().map(|(_, piece)| piece).collect();
 
-    let (en_passant_left, en_passant_right) =
-        find_en_passant_pieces(&last_pawn_double_step, player_turn.0, &pieces);
-
-    let castling_data = if player_turn.0 == PieceColour::White {
-        &**white_castling_data
-    } else {
-        &**black_castling_data
-    };
+    let (en_passant_left, en_passant_right) = find_en_passant_pieces(
+        &special_move_data.last_pawn_double_step,
+        player_turn.0,
+        &pieces,
+    );
 
     // note: this calculates all potential moves for both sides - this makes it easier to check for check(mate)
     pieces.for_each(|(entity, piece)| {
@@ -610,9 +595,9 @@ pub fn calculate_all_moves(
             safe_player_moves,
             safe_king_moves,
             pieces_threatening_king,
-            &last_pawn_double_step,
+            &special_move_data.last_pawn_double_step,
             en_passant_left,
-            en_passant_right
+            en_passant_right,
         );
 
         if counter_moves.iter().all(|(_, moves)| moves.is_empty()) {
@@ -624,6 +609,8 @@ pub fn calculate_all_moves(
         });
     } else {
         let mut safe_king_moves = safe_king_moves;
+        let castling_data = special_move_data.castling_data(player_turn.0);
+
         if !castling_data.king_moved {
             if !castling_data.queenside_rook_moved {
                 let first_move = (king.x, king.y - 1);
@@ -736,10 +723,8 @@ pub fn move_piece(
     selected_piece: Res<SelectedPiece>,
     all_valid_moves: Res<AllValidMoves>,
     player_turn: Res<PlayerTurn>,
-    mut en_passant_data: ResMut<Option<LastPawnDoubleStep>>,
     mut game_state: ResMut<State<GameState>>,
-    mut white_castling_data: ResMut<WhiteCastlingData>,
-    mut black_castling_data: ResMut<BlackCastlingData>,
+    mut special_move_data: ResMut<SpecialMoveData>,
     squares: Query<&Square>,
     mut pieces: Query<(Entity, &mut Piece)>,
 ) {
@@ -753,26 +738,24 @@ pub fn move_piece(
         let valid_moves = all_valid_moves.get(piece_id);
         if valid_moves.contains(&(square.x, square.y)) {
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
-            let en_passant = en_passant_data.take();
+            let last_pawn_double_step = special_move_data.last_pawn_double_step.take();
 
             if piece.kind == PieceKind::Pawn {
-                if let Some(en_passant) = en_passant {
-                    if piece.x == en_passant.x {
-                        commands.entity(en_passant.pawn_id).insert(Taken);
+                if let Some(double_step) = last_pawn_double_step {
+                    if piece.x == double_step.x {
+                        commands.entity(double_step.pawn_id).insert(Taken);
                     }
                 } else if piece.x.abs_diff(square.x) == 2 {
-                    let _ = en_passant_data.insert(LastPawnDoubleStep {
-                        pawn_id: piece_id,
-                        x: square.x,
-                        y: square.y,
-                    });
+                    let _ = special_move_data
+                        .last_pawn_double_step
+                        .insert(LastPawnDoubleStep {
+                            pawn_id: piece_id,
+                            x: square.x,
+                            y: square.y,
+                        });
                 }
             } else if piece.kind == PieceKind::King {
-                let mut castling_data = if player_turn.0 == PieceColour::White {
-                    &mut **white_castling_data
-                } else {
-                    &mut **black_castling_data
-                };
+                let mut castling_data = special_move_data.castling_data_mut(player_turn.0);
                 let king_moved = castling_data.king_moved;
 
                 castling_data.king_moved = true;
@@ -805,11 +788,7 @@ pub fn move_piece(
                     return;
                 }
             } else if piece.kind == PieceKind::Rook {
-                let mut castling_data = if player_turn.0 == PieceColour::White {
-                    &mut **white_castling_data
-                } else {
-                    &mut **black_castling_data
-                };
+                let mut castling_data = special_move_data.castling_data_mut(player_turn.0);
 
                 if !castling_data.queenside_rook_moved && piece.y == 0 {
                     castling_data.queenside_rook_moved = true;
@@ -821,25 +800,20 @@ pub fn move_piece(
             pieces
                 .iter_mut()
                 .find(|(_, other)| other.x == square.x && other.y == square.y)
-                .map(|(other_entity, piece)| {
-                    if piece.kind == PieceKind::Rook {
-                        // todo might be able to simplify this
-                        if player_turn.0 == PieceColour::White && piece.x == 7 {
-                            if piece.y == 0 {
-                                black_castling_data.queenside_rook_moved = true;
-                            } else if piece.y == 7 {
-                                black_castling_data.kingside_rook_moved = true;
-                            }
-                        } else if player_turn.0 == PieceColour::Black && piece.x == 0 {
-                            if piece.y == 0 {
-                                white_castling_data.queenside_rook_moved = true;
-                            } else if piece.y == 7 {
-                                white_castling_data.kingside_rook_moved = true;
-                            }
+                .map(|(target_entity, target_piece)| {
+                    if target_piece.kind == PieceKind::Rook {
+                        let other_player = player_turn.0.opposite();
+                        let mut castling_data =
+                            special_move_data.castling_data_mut(other_player);
+
+                        if target_piece.x == other_player.starting_back_row() && target_piece.y == 0 {
+                            castling_data.queenside_rook_moved = true;
+                        } else if target_piece.x == other_player.starting_back_row() && target_piece.y == 7 {
+                            castling_data.kingside_rook_moved = true;
                         }
                     }
 
-                    commands.entity(other_entity).insert(Taken);
+                    commands.entity(target_entity).insert(Taken);
                 });
 
             commands.entity(piece_id).insert(MovePiece {
@@ -890,13 +864,11 @@ fn restart_game(input: Res<Input<KeyCode>>, mut state: ResMut<State<GameState>>)
 fn start_new_game(
     mut game_state: ResMut<State<GameState>>,
     mut turn: ResMut<PlayerTurn>,
-    mut white_castling_data: ResMut<WhiteCastlingData>,
-    mut black_castling_data: ResMut<BlackCastlingData>,
+    mut special_move_data: ResMut<SpecialMoveData>,
 ) {
     turn.0 = PieceColour::White;
     game_state.set(GameState::NothingSelected).unwrap();
-    **white_castling_data = CastlingData::default();
-    **black_castling_data = CastlingData::default();
+    *special_move_data = Default::default();
 }
 
 struct SquareMaterials {
