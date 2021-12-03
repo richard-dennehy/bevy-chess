@@ -997,8 +997,6 @@ mod board_tests {
                 })
             );
 
-            // turn 1 move white king
-
             stage.run(&mut world);
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3), (5, 4)]);
@@ -1006,11 +1004,10 @@ mod board_tests {
             world.move_piece(white_king, 1, 4);
             stage.run(&mut world);
 
-            // turn 2 move black king
             world.move_piece(black_king, 6, 4);
             stage.run(&mut world);
 
-            // turn 3 - check white pawn can't still move en passant
+            // check white pawn can't still move en passant
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3)]);
         }
