@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use std::cmp::Ordering;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::fmt::Formatter;
+use crate::moves_calculator::Move;
 
 pub struct PiecePlugin;
 impl Plugin for PiecePlugin {
@@ -93,7 +94,7 @@ impl Piece {
     //   a piece would open up a path to the King, or if taking a piece with the King would leave it
     //   in check.
     //   Still need AllValidMoves, but need a function to convert from this return type to that
-    pub fn valid_moves(&self, board: &BoardState) -> Vec<(u8, u8)> {
+    pub fn valid_moves(&self, board: &BoardState) -> Vec<Move> {
         let (x, y) = (self.x as i8, self.y as i8);
 
         let is_on_board = |(x, y): (i8, i8)| {
@@ -109,7 +110,8 @@ impl Piece {
             .flat_map(|adj| [(x + adj, y + adj), (x - adj, y + adj)].into_iter())
             .filter_map(is_on_board)
             .filter(not_occupied_by_same_colour)
-            .filter(path_clear);
+            .filter(path_clear)
+            .map(Move::standard);
 
         let straight_lines = (-7..=7)
             .filter(|adj| *adj != 0)
@@ -117,7 +119,8 @@ impl Piece {
             .chain((-7..=7).filter(|adj| *adj != 0).map(|adj| (x, y + adj)))
             .filter_map(is_on_board)
             .filter(not_occupied_by_same_colour)
-            .filter(path_clear);
+            .filter(path_clear)
+            .map(Move::standard);
 
         match self.kind {
             PieceKind::King => [
@@ -133,6 +136,7 @@ impl Piece {
             .into_iter()
             .filter_map(is_on_board)
             .filter(not_occupied_by_same_colour)
+            .map(Move::standard)
             .collect(),
             PieceKind::Queen => diagonals.chain(straight_lines).collect(),
             PieceKind::Bishop => diagonals.collect(),
@@ -149,14 +153,15 @@ impl Piece {
             .into_iter()
             .filter_map(is_on_board)
             .filter(not_occupied_by_same_colour)
+            .map(Move::standard)
             .collect(),
             PieceKind::Rook => straight_lines.collect(),
             PieceKind::Pawn => {
                 let direction = self.colour.pawn_direction();
-                let (starting_row, final_row) = if self.colour == PieceColour::White {
-                    (1, 7)
-                } else {
-                    (6, 0)
+                let starting_row = self.colour.starting_front_row() as i8;
+                let final_row = match self.colour {
+                    PieceColour::White => 7,
+                    PieceColour::Black => 0,
                 };
 
                 if x == final_row {
@@ -169,10 +174,10 @@ impl Piece {
                     let y = y as u8;
 
                     if board.get(move_one, y).is_none() {
-                        moves.push((move_one, y));
+                        moves.push(Move::standard((move_one, y)));
 
                         if x == starting_row && board.get(move_two, y).is_none() {
-                            moves.push((move_two, y));
+                            moves.push(Move::pawn_double_step(move_two, y));
                         }
                     };
 
@@ -183,11 +188,11 @@ impl Piece {
                     };
 
                     if y != 7 && board.get(move_one, y + 1).contains(&opposite_colour) {
-                        moves.push((move_one, y + 1));
+                        moves.push(Move::standard((move_one, y + 1)));
                     };
 
                     if y != 0 && board.get(move_one, y - 1).contains(&opposite_colour) {
-                        moves.push((move_one, y - 1));
+                        moves.push(Move::standard((move_one, y - 1)));
                     };
 
                     moves

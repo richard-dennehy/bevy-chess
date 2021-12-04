@@ -2,6 +2,64 @@ use crate::board::{AllValidMoves, BoardState, SpecialMoveData};
 use crate::pieces::{Piece, PieceColour, PieceKind};
 use bevy::prelude::Entity;
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct Move {
+    pub x: u8,
+    pub y: u8,
+    pub kind: MoveKind,
+}
+
+impl Move {
+    pub fn standard((x, y): (u8, u8)) -> Self {
+        Move {
+            x,
+            y,
+            kind: MoveKind::Standard,
+        }
+    }
+
+    pub fn pawn_double_step(x: u8, y: u8) -> Self {
+        Move {
+            x,
+            y,
+            kind: MoveKind::PawnDoubleStep,
+        }
+    }
+
+    pub fn en_passant(x: u8, y: u8) -> Self {
+        Move {
+            x,
+            y,
+            kind: MoveKind::EnPassant,
+        }
+    }
+
+    pub fn kingside_castle(x: u8, y: u8) -> Self {
+        Move {
+            x,
+            y,
+            kind: MoveKind::KingsideCastle,
+        }
+    }
+
+    pub fn queenside_castle(x: u8, y: u8) -> Self {
+        Move {
+            x,
+            y,
+            kind: MoveKind::QueensideCastle,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum MoveKind {
+    Standard,
+    PawnDoubleStep,
+    EnPassant,
+    KingsideCastle,
+    QueensideCastle,
+}
+
 pub fn calculate_valid_moves(
     turn: PieceColour,
     special_move_data: &SpecialMoveData,
@@ -38,7 +96,6 @@ struct MoveCalculator<'game> {
     board_state: BoardState,
 }
 
-type Move = (u8, u8);
 type Moves = Vec<Move>;
 type PieceMoves = (Entity, Moves);
 type EnPassantMove = (Entity, Move);
@@ -79,8 +136,6 @@ impl<'game> MoveCalculator<'game> {
                 safe_king_moves,
                 safe_player_moves,
                 pieces_attacking_king,
-                en_passant_left,
-                en_passant_right,
             );
 
             counter_moves.into_iter().for_each(|(entity, moves)| {
@@ -109,7 +164,7 @@ impl<'game> MoveCalculator<'game> {
                         && piece.colour == self.turn)
                         .then(|| {
                             let direction = piece.colour.pawn_direction();
-                            let ep_move = (
+                            let ep_move = Move::en_passant(
                                 (piece.x as i8 + direction) as u8,
                                 (piece.y as i8 - offset) as u8,
                             );
@@ -128,20 +183,22 @@ impl<'game> MoveCalculator<'game> {
         all_moves
             .get(self.king_entity)
             .into_iter()
-            .filter(|(x, y)| {
+            .filter(|king_move| {
+                let (x, y) = (king_move.x, king_move.y);
+
                 !self.opposite_pieces.iter().any(|(entity, piece)| {
                     // don't need to check which colour as `valid_moves` already handles same colour pieces
-                    if self.board_state.get(*x, *y).is_some() {
+                    if self.board_state.get(x, y).is_some() {
                         // awkward logic to check if any piece can move to the square once the current piece is taken
                         piece
-                            .path_to_take_piece_at((*x, *y))
+                            .path_to_take_piece_at((x, y))
                             .into_iter()
                             .all(|(path_x, path_y)| {
-                                (path_x == *x && path_y == *y)
+                                (path_x == x && path_y == y)
                                     || self.board_state.get(path_x, path_y).is_none()
                             })
                     } else {
-                        all_moves.get(*entity).contains(&(*x, *y))
+                        all_moves.contains(*entity, x, y)
                     }
                 })
             })
@@ -152,11 +209,7 @@ impl<'game> MoveCalculator<'game> {
     fn pieces_attacking_king(&self, all_moves: &AllValidMoves) -> Vec<(Entity, &Piece)> {
         self.opposite_pieces
             .iter()
-            .filter(|(entity, _)| {
-                all_moves
-                    .get(*entity)
-                    .contains(&(self.king.x, self.king.y))
-            })
+            .filter(|(entity, _)| all_moves.contains(*entity, self.king.x, self.king.y))
             .copied()
             .collect::<Vec<_>>()
     }
@@ -171,11 +224,12 @@ impl<'game> MoveCalculator<'game> {
                 let safe_moves = all_moves
                     .get(*entity)
                     .iter()
-                    .filter(|(x, y)| {
+                    .filter(|piece_move| {
                         // safe move iff: doesn't open up a path to the king, or stays within the same path, or takes the piece
                         potential_threats.iter().all(|(_, threat)| {
                             let path = threat.path_to_take_piece_at((self.king.x, self.king.y));
-                            !path.contains(&(piece.x, piece.y)) || path.contains(&(*x, *y))
+                            !path.contains(&(piece.x, piece.y))
+                                || path.contains(&(piece_move.x, piece_move.y))
                         })
                     })
                     .copied()
@@ -189,8 +243,7 @@ impl<'game> MoveCalculator<'game> {
         self.opposite_pieces
             .iter()
             .filter(|(_, piece)| {
-                let path = piece
-                    .path_to_take_piece_at((self.king.x, self.king.y));
+                let path = piece.path_to_take_piece_at((self.king.x, self.king.y));
 
                 if path.is_empty() {
                     return false;
@@ -213,40 +266,31 @@ impl<'game> MoveCalculator<'game> {
         safe_king_moves: Moves,
         safe_moves: Vec<PieceMoves>,
         pieces_attacking_king: Vec<(Entity, &Piece)>,
-        en_passant_left: Option<EnPassantMove>,
-        en_passant_right: Option<EnPassantMove>,
     ) -> Vec<PieceMoves> {
         std::iter::once((self.king_entity, safe_king_moves))
             .chain(safe_moves.iter().map(|(entity, safe_piece_moves)| {
                 // this piece can only move if it can take or block the piece that has the king in check
                 let counter_moves = safe_piece_moves
                     .iter()
-                    .filter(|(move_x, move_y)| {
+                    .filter(|piece_move| {
                         pieces_attacking_king
                             .iter()
                             .all(|(opposite_entity, opposite_piece)| {
-                                // todo extract this or precalculate
                                 let is_en_passant_target = self
                                     .special_move_data
                                     .last_pawn_double_step
                                     .as_ref()
                                     .map_or(false, |e| e.pawn_id == *opposite_entity);
-                                let is_left_en_passant = en_passant_left
-                                    .as_ref()
-                                    .map_or(false, |(_, ep_move)| ep_move == &(*move_x, *move_y));
-                                let is_right_en_passant = en_passant_right
-                                    .as_ref()
-                                    .map_or(false, |(_, ep_move)| ep_move == &(*move_x, *move_y));
 
-                                let can_take_en_passant = is_en_passant_target
-                                    && (is_left_en_passant || is_right_en_passant);
+                                let can_take_en_passant =
+                                    is_en_passant_target && piece_move.kind == MoveKind::EnPassant;
 
-                                let can_take_directly =
-                                    opposite_piece.x == *move_x && opposite_piece.y == *move_y;
+                                let can_take_directly = opposite_piece.x == piece_move.x
+                                    && opposite_piece.y == piece_move.y;
 
                                 let blocks_piece = opposite_piece
                                     .path_to_take_piece_at((self.king.x, self.king.y))
-                                    .contains(&(*move_x, *move_y));
+                                    .contains(&(piece_move.x, piece_move.y));
 
                                 can_take_en_passant || can_take_directly || blocks_piece
                             })
@@ -260,42 +304,38 @@ impl<'game> MoveCalculator<'game> {
     }
 
     fn calculate_castling_moves(&self, all_moves: &AllValidMoves) -> Moves {
+        let king_does_not_pass_through_attacked_square = |dir: i8| {
+            let first_move = (self.king.x, ((self.king.y as i8) + dir) as u8);
+            let second_move = (self.king.x, ((self.king.y as i8) + (dir * 2)) as u8);
+
+            self.board_state.get(first_move.0, first_move.1).is_none()
+                && self.board_state.get(second_move.0, second_move.1).is_none()
+                && self.opposite_pieces.iter().all(|(entity, _)| {
+                !(all_moves.contains(*entity, first_move.0, first_move.1)
+                    || all_moves.contains(*entity, second_move.0, second_move.1))
+            })
+        };
+
         let mut moves = vec![];
         let castling_data = self.special_move_data.castling_data(self.turn);
 
         if !castling_data.king_moved {
             if !castling_data.queenside_rook_moved {
-                let first_move = (self.king.x, self.king.y - 1);
-                let second_move = (self.king.x, self.king.y - 2);
                 let passed_through = (self.king.x, self.king.y - 3);
 
-                if self.board_state.get(first_move.0, first_move.1).is_none()
-                    && self.board_state.get(second_move.0, second_move.1).is_none()
+                if king_does_not_pass_through_attacked_square(-1)
                     && self
                         .board_state
                         .get(passed_through.0, passed_through.1)
                         .is_none()
-                    && self.opposite_pieces.iter().all(|(entity, _)| {
-                        let moves = all_moves.get(*entity);
-                        !(moves.contains(&first_move) || moves.contains(&second_move))
-                    })
                 {
-                    moves.push((self.king.x, 0));
+                    moves.push(Move::queenside_castle(self.king.x, 0));
                 }
             }
 
             if !castling_data.kingside_rook_moved {
-                let first_move = (self.king.x, self.king.y + 1);
-                let second_move = (self.king.x, self.king.y + 2);
-
-                if self.board_state.get(first_move.0, first_move.1).is_none()
-                    && self.board_state.get(second_move.0, second_move.1).is_none()
-                    && self.opposite_pieces.iter().all(|(entity, _)| {
-                        let moves = all_moves.get(*entity);
-                        !(moves.contains(&first_move) || moves.contains(&second_move))
-                    })
-                {
-                    moves.push((self.king.x, 7));
+                if king_does_not_pass_through_attacked_square(1) {
+                    moves.push(Move::kingside_castle(self.king.x, 7));
                 }
             }
         };

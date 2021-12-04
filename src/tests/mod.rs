@@ -67,6 +67,7 @@ mod board_tests {
         use super::*;
         use crate::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn, SpecialMoveData};
         use bevy::prelude::*;
+        use crate::moves_calculator::Move;
 
         fn setup() -> (World, SystemStage) {
             let mut world = World::new();
@@ -140,7 +141,7 @@ mod board_tests {
             update_stage.run(&mut world);
             let valid_moves = world.get_resource::<AllValidMoves>().unwrap();
 
-            assert_eq!(valid_moves.get(king_id), &vec![(6, 4)]);
+            assert_eq!(valid_moves.get(king_id), &vec![Move::standard((6, 4))]);
             assert_eq!(valid_moves.get(rook_id), &vec![]);
             assert_eq!(valid_moves.get(knight_id), &vec![]);
             assert_eq!(valid_moves.get(queen_id), &vec![]);
@@ -275,7 +276,7 @@ mod board_tests {
             ids.into_iter()
                 .for_each(|id| assert!(all_valid_moves.get(id).is_empty()));
 
-            assert_eq!(all_valid_moves.get(pawn_id), &vec![(5, 3)]);
+            assert_eq!(all_valid_moves.get(pawn_id), &vec![Move::standard((5, 3))]);
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(game_state.current(), &GameState::NothingSelected);
@@ -376,7 +377,7 @@ mod board_tests {
             update_stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(king_id), &vec![(6, 4)]);
+            assert_eq!(all_valid_moves.get(king_id), &vec![Move::standard((6, 4))]);
         }
 
         #[test]
@@ -563,7 +564,7 @@ mod board_tests {
                 )
             });
 
-            assert_eq!(all_valid_moves.get(blocking_pawn), &vec![(6, 3)]);
+            assert_eq!(all_valid_moves.get(blocking_pawn), &vec![Move::standard((6, 3))]);
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(game_state.current(), &GameState::NothingSelected);
@@ -642,7 +643,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(bishop_id),
-                &vec![(3, 0), (4, 1), (5, 2)]
+                &vec![Move::standard((3, 0)), Move::standard((4, 1)), Move::standard((5, 2))]
             );
         }
 
@@ -692,7 +693,7 @@ mod board_tests {
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert!(all_valid_moves.get(pawn_id).is_empty());
-            assert_eq!(all_valid_moves.get(king_id), &vec![(6, 3), (7, 3), (7, 5)]);
+            assert_eq!(all_valid_moves.get(king_id), &vec![Move::standard((6, 3)), Move::standard((7, 3)), Move::standard((7, 5))]);
         }
 
         #[test]
@@ -750,6 +751,7 @@ mod board_tests {
         use crate::board::{calculate_all_moves, move_piece, AllValidMoves, LastPawnDoubleStep, GameState, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken, CastlingData, SpecialMoveData};
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
+        use crate::moves_calculator::Move;
 
         trait WorldTestUtils {
             fn overwrite_resource<T: Component>(&mut self, resource: T);
@@ -787,7 +789,7 @@ mod board_tests {
             fn move_piece(&mut self, piece_id: Entity, x: u8, y: u8) {
                 let all_valid_moves = self.get_resource::<AllValidMoves>().unwrap();
                 let piece_moves = all_valid_moves.get(piece_id);
-                assert!(piece_moves.contains(&(x, y)), "({}, {}) is not a valid move; valid moves: {:?}", x, y, piece_moves);
+                assert!(all_valid_moves.contains(piece_id, x, y), "({}, {}) is not a valid move; valid moves: {:?}", x, y, piece_moves);
 
                 let piece = self.get::<Piece>(piece_id).unwrap();
                 let turn = self.get_resource::<PlayerTurn>().unwrap();
@@ -999,7 +1001,7 @@ mod board_tests {
 
             stage.run(&mut world);
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3), (5, 4)]);
+            assert_eq!(all_valid_moves.get(white_pawn), &vec![Move::standard((5, 3)), Move::en_passant(5, 4)]);
 
             world.move_piece(white_king, 1, 4);
             stage.run(&mut world);
@@ -1009,7 +1011,7 @@ mod board_tests {
 
             // check white pawn can't still move en passant
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3)]);
+            assert_eq!(all_valid_moves.get(white_pawn), &vec![Move::standard((5, 3))]);
         }
 
         #[test]
@@ -1101,7 +1103,7 @@ mod board_tests {
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(white_king), &vec![]);
-            assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 4)]);
+            assert_eq!(all_valid_moves.get(white_pawn), &vec![Move::en_passant(5, 4)]);
         }
 
         #[test]
@@ -1276,7 +1278,7 @@ mod board_tests {
             );
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(white_pawn), &vec![(5, 3)]);
+            assert_eq!(all_valid_moves.get(white_pawn), &vec![Move::standard((5, 3))]);
         }
 
         #[test]
@@ -1426,7 +1428,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 0), (0, 7)]
+                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::queenside_castle(0, 0), Move::kingside_castle(0, 7)]
             );
 
             world.move_piece(white_king, 0, 5);
@@ -1438,7 +1440,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 4), (0, 6), (1, 4), (1, 5), (1, 6)]
+                &vec![Move::standard((0, 4)), Move::standard((0, 6)), Move::standard((1, 4)), Move::standard((1, 5)), Move::standard((1, 6))]
             );
 
             world.move_piece(white_king, 0, 4);
@@ -1450,7 +1452,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5)]
+                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5))]
             );
         }
 
@@ -1503,7 +1505,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 0), (0, 7)]
+                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::queenside_castle(0, 0), Move::kingside_castle(0, 7)]
             );
 
             world.move_piece(white_kingside_rook, 1, 7);
@@ -1515,7 +1517,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 0)]
+                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::queenside_castle(0, 0)]
             );
 
             world.move_piece(white_kingside_rook, 0, 7);
@@ -1527,7 +1529,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 0)]
+                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::queenside_castle(0, 0)]
             );
         }
 
@@ -1580,7 +1582,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 0), (0, 7)]
+                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::queenside_castle(0, 0), Move::kingside_castle(0, 7)]
             );
 
             world.move_piece(white_queenside_rook, 1, 0);
@@ -1592,7 +1594,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 7)]
+                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::kingside_castle(0, 7)]
             );
 
             world.move_piece(white_queenside_rook, 0, 0);
@@ -1604,7 +1606,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 7)]
+                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::kingside_castle(0, 7)]
             );
         }
 
@@ -1660,7 +1662,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 3), (0, 5), (1, 4), (1, 5)]
+                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 4)), Move::standard((1, 5))]
             );
         }
 
@@ -1717,7 +1719,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 5), (1, 3), (1, 5), (0, 7)]
+                &vec![Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 5)), Move::kingside_castle(0, 7)]
             );
         }
 
@@ -1775,7 +1777,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![(0, 3), (0, 5), (1, 3), (1, 4), (1, 5), (0, 7)]
+                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::kingside_castle(0, 7)]
             );
         }
     }
@@ -1785,6 +1787,7 @@ mod piece_tests {
     use crate::pieces::*;
 
     mod valid_moves_of_a_white_pawn {
+        use crate::moves_calculator::Move;
         use super::*;
 
         fn pawn(x: u8, y: u8) -> Piece {
@@ -1797,6 +1800,7 @@ mod piece_tests {
         }
 
         mod when_the_board_is_empty {
+            use crate::moves_calculator::Move;
             use super::*;
 
             #[test]
@@ -1804,7 +1808,7 @@ mod piece_tests {
                 let pawn = pawn(2, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                assert_eq!(valid_moves, vec![(3, 0)]);
+                assert_eq!(valid_moves, vec![Move::standard((3, 0))]);
             }
 
             #[test]
@@ -1812,7 +1816,7 @@ mod piece_tests {
                 let pawn = pawn(1, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                assert_eq!(valid_moves, vec![(2, 0), (3, 0)]);
+                assert_eq!(valid_moves, vec![Move::standard((2, 0)), Move::pawn_double_step(3, 0)]);
             }
 
             #[test]
@@ -1844,7 +1848,7 @@ mod piece_tests {
             ];
 
             let valid_moves = pawn.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![(3, 1), (3, 2), (3, 0)]);
+            assert_eq!(valid_moves, vec![Move::standard((3, 1)), Move::standard((3, 2)), Move::standard((3, 0))]);
         }
 
         #[test]
@@ -1895,7 +1899,7 @@ mod piece_tests {
             ];
 
             let valid_moves = pawn.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![(2, 0)]);
+            assert_eq!(valid_moves, vec![Move::standard((2, 0))]);
 
             let pieces = [
                 Piece {
@@ -1913,6 +1917,7 @@ mod piece_tests {
     }
 
     mod valid_moves_of_a_black_pawn {
+        use crate::moves_calculator::Move;
         use super::*;
 
         fn pawn(x: u8, y: u8) -> Piece {
@@ -1925,6 +1930,7 @@ mod piece_tests {
         }
 
         mod when_the_board_is_empty {
+            use crate::moves_calculator::Move;
             use super::*;
 
             #[test]
@@ -1932,7 +1938,7 @@ mod piece_tests {
                 let pawn = pawn(5, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                assert_eq!(valid_moves, vec![(4, 0)]);
+                assert_eq!(valid_moves, vec![Move::standard((4, 0))]);
             }
 
             #[test]
@@ -1940,7 +1946,7 @@ mod piece_tests {
                 let pawn = pawn(6, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                assert_eq!(valid_moves, vec![(5, 0), (4, 0)]);
+                assert_eq!(valid_moves, vec![Move::standard((5, 0)), Move::pawn_double_step(4, 0)]);
             }
 
             #[test]
@@ -1972,7 +1978,7 @@ mod piece_tests {
             ];
 
             let valid_moves = pawn.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![(4, 1), (4, 2), (4, 0)]);
+            assert_eq!(valid_moves, vec![Move::standard((4, 1)), Move::standard((4, 2)), Move::standard((4, 0))]);
         }
 
         #[test]
@@ -2023,7 +2029,7 @@ mod piece_tests {
             ];
 
             let valid_moves = pawn.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![(5, 0)]);
+            assert_eq!(valid_moves, vec![Move::standard((5, 0))]);
 
             let pieces = [
                 Piece {
@@ -2041,6 +2047,7 @@ mod piece_tests {
     }
 
     mod valid_moves_of_a_king {
+        use crate::moves_calculator::Move;
         use super::*;
 
         fn king(x: u8, y: u8) -> Piece {
@@ -2059,14 +2066,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    (0, 0),
-                    (0, 1),
-                    (0, 2),
-                    (1, 0),
-                    (1, 2),
-                    (2, 0),
-                    (2, 1),
-                    (2, 2)
+                    Move::standard((0, 0)),
+                    Move::standard((0, 1)),
+                    Move::standard((0, 2)),
+                    Move::standard((1, 0)),
+                    Move::standard((1, 2)),
+                    Move::standard((2, 0)),
+                    Move::standard((2, 1)),
+                    Move::standard((2, 2))
                 ]
             );
         }
@@ -2075,7 +2082,7 @@ mod piece_tests {
         fn should_not_be_able_to_move_off_the_board() {
             let king = king(0, 0);
             let valid_moves = king.valid_moves(&[king].into());
-            assert_eq!(valid_moves, vec![(0, 1), (1, 0), (1, 1),]);
+            assert_eq!(valid_moves, vec![Move::standard((0, 1)), Move::standard((1, 0)), Move::standard((1, 1))]);
         }
 
         #[test]
@@ -2090,11 +2097,12 @@ mod piece_tests {
             let pieces = [king, pawn(2, 1), pawn(2, 2), pawn(1, 2)];
 
             let valid_moves = king.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![(0, 0), (0, 1), (0, 2), (1, 0), (2, 0),]);
+            assert_eq!(valid_moves, vec![Move::standard((0, 0)), Move::standard((0, 1)), Move::standard((0, 2)), Move::standard((1, 0)), Move::standard((2, 0))]);
         }
     }
 
     mod valid_moves_of_a_queen {
+        use crate::moves_calculator::Move;
         use super::*;
 
         fn queen(x: u8, y: u8) -> Piece {
@@ -2113,29 +2121,29 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    (0, 0),
-                    (2, 0),
-                    (2, 2),
-                    (0, 2),
-                    (3, 3),
-                    (4, 4),
-                    (5, 5),
-                    (6, 6),
-                    (7, 7),
-                    (0, 1),
-                    (2, 1),
-                    (3, 1),
-                    (4, 1),
-                    (5, 1),
-                    (6, 1),
-                    (7, 1),
-                    (1, 0),
-                    (1, 2),
-                    (1, 3),
-                    (1, 4),
-                    (1, 5),
-                    (1, 6),
-                    (1, 7)
+                    Move::standard((0, 0)),
+                    Move::standard((2, 0)),
+                    Move::standard((2, 2)),
+                    Move::standard((0, 2)),
+                    Move::standard((3, 3)),
+                    Move::standard((4, 4)),
+                    Move::standard((5, 5)),
+                    Move::standard((6, 6)),
+                    Move::standard((7, 7)),
+                    Move::standard((0, 1)),
+                    Move::standard((2, 1)),
+                    Move::standard((3, 1)),
+                    Move::standard((4, 1)),
+                    Move::standard((5, 1)),
+                    Move::standard((6, 1)),
+                    Move::standard((7, 1)),
+                    Move::standard((1, 0)),
+                    Move::standard((1, 2)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::standard((1, 6)),
+                    Move::standard((1, 7))
                 ]
             );
         }
@@ -2155,15 +2163,15 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    (0, 0),
-                    (2, 0),
-                    (2, 2),
-                    (0, 2),
-                    (0, 1),
-                    (2, 1),
-                    (3, 1),
-                    (4, 1),
-                    (1, 0),
+                    Move::standard((0, 0)),
+                    Move::standard((2, 0)),
+                    Move::standard((2, 2)),
+                    Move::standard((0, 2)),
+                    Move::standard((0, 1)),
+                    Move::standard((2, 1)),
+                    Move::standard((3, 1)),
+                    Move::standard((4, 1)),
+                    Move::standard((1, 0)),
                 ]
             );
         }
@@ -2183,18 +2191,18 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    (0, 0),
-                    (2, 0),
-                    (2, 2),
-                    (0, 2),
-                    (3, 3),
-                    (0, 1),
-                    (2, 1),
-                    (3, 1),
-                    (4, 1),
-                    (5, 1),
-                    (1, 0),
-                    (1, 2),
+                    Move::standard((0, 0)),
+                    Move::standard((2, 0)),
+                    Move::standard((2, 2)),
+                    Move::standard((0, 2)),
+                    Move::standard((3, 3)),
+                    Move::standard((0, 1)),
+                    Move::standard((2, 1)),
+                    Move::standard((3, 1)),
+                    Move::standard((4, 1)),
+                    Move::standard((5, 1)),
+                    Move::standard((1, 0)),
+                    Move::standard((1, 2)),
                 ]
             );
         }
@@ -2220,11 +2228,12 @@ mod piece_tests {
             ];
             let valid_moves = queen.valid_moves(&pieces.into());
 
-            assert_eq!(valid_moves, vec![(6, 4), (5, 5), (4, 6), (3, 7),]);
+            assert_eq!(valid_moves, vec![Move::standard((6, 4)), Move::standard((5, 5)), Move::standard((4, 6)), Move::standard((3, 7)),]);
         }
     }
 
     mod valid_moves_of_a_bishop {
+        use crate::moves_calculator::Move;
         use super::*;
 
         fn bishop(x: u8, y: u8) -> Piece {
@@ -2243,15 +2252,15 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    (0, 0),
-                    (2, 0),
-                    (2, 2),
-                    (0, 2),
-                    (3, 3),
-                    (4, 4),
-                    (5, 5),
-                    (6, 6),
-                    (7, 7),
+                    Move::standard((0, 0)),
+                    Move::standard((2, 0)),
+                    Move::standard((2, 2)),
+                    Move::standard((0, 2)),
+                    Move::standard((3, 3)),
+                    Move::standard((4, 4)),
+                    Move::standard((5, 5)),
+                    Move::standard((6, 6)),
+                    Move::standard((7, 7)),
                 ]
             );
         }
@@ -2270,7 +2279,7 @@ mod piece_tests {
             let valid_moves = bishop.valid_moves(&pieces.into());
             assert_eq!(
                 valid_moves,
-                vec![(0, 0), (2, 0), (2, 2), (0, 2), (3, 3), (4, 4),]
+                vec![Move::standard((0, 0)), Move::standard((2, 0)), Move::standard((2, 2)), Move::standard((0, 2)), Move::standard((3, 3)), Move::standard((4, 4)),]
             );
         }
 
@@ -2288,12 +2297,13 @@ mod piece_tests {
             let valid_moves = bishop.valid_moves(&pieces.into());
             assert_eq!(
                 valid_moves,
-                vec![(0, 0), (2, 0), (2, 2), (0, 2), (3, 3), (4, 4), (5, 5),]
+                vec![Move::standard((0, 0)), Move::standard((2, 0)), Move::standard((2, 2)), Move::standard((0, 2)), Move::standard((3, 3)), Move::standard((4, 4)), Move::standard((5, 5)),]
             );
         }
     }
 
     mod valid_moves_of_a_knight {
+        use crate::moves_calculator::Move;
         use super::*;
 
         fn knight(x: u8, y: u8) -> Piece {
@@ -2312,14 +2322,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    (0, 1),
-                    (0, 3),
-                    (4, 1),
-                    (4, 3),
-                    (1, 0),
-                    (1, 4),
-                    (3, 0),
-                    (3, 4),
+                    Move::standard((0, 1)),
+                    Move::standard((0, 3)),
+                    Move::standard((4, 1)),
+                    Move::standard((4, 3)),
+                    Move::standard((1, 0)),
+                    Move::standard((1, 4)),
+                    Move::standard((3, 0)),
+                    Move::standard((3, 4)),
                 ]
             );
         }
@@ -2328,7 +2338,7 @@ mod piece_tests {
         fn should_not_be_able_to_move_off_the_board() {
             let knight = knight(0, 0);
             let valid_moves = knight.valid_moves(&[knight].into());
-            assert_eq!(valid_moves, vec![(2, 1), (1, 2),]);
+            assert_eq!(valid_moves, vec![Move::standard((2, 1)), Move::standard((1, 2)),]);
         }
 
         #[test]
@@ -2356,14 +2366,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    (0, 1),
-                    (0, 3),
-                    (4, 1),
-                    (4, 3),
-                    (1, 0),
-                    (1, 4),
-                    (3, 0),
-                    (3, 4),
+                    Move::standard((0, 1)),
+                    Move::standard((0, 3)),
+                    Move::standard((4, 1)),
+                    Move::standard((4, 3)),
+                    Move::standard((1, 0)),
+                    Move::standard((1, 4)),
+                    Move::standard((3, 0)),
+                    Move::standard((3, 4)),
                 ]
             );
         }
@@ -2380,11 +2390,12 @@ mod piece_tests {
             let pieces = [knight, pawn(0, 1), pawn(4, 1), pawn(3, 0)];
 
             let valid_moves = knight.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![(0, 3), (4, 3), (1, 0), (1, 4), (3, 4),]);
+            assert_eq!(valid_moves, vec![Move::standard((0, 3)), Move::standard((4, 3)), Move::standard((1, 0)), Move::standard((1, 4)), Move::standard((3, 4)),]);
         }
     }
 
     mod valid_moves_of_a_rook {
+        use crate::moves_calculator::Move;
         use super::*;
 
         fn rook(x: u8, y: u8) -> Piece {
@@ -2403,20 +2414,20 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    (0, 1),
-                    (2, 1),
-                    (3, 1),
-                    (4, 1),
-                    (5, 1),
-                    (6, 1),
-                    (7, 1),
-                    (1, 0),
-                    (1, 2),
-                    (1, 3),
-                    (1, 4),
-                    (1, 5),
-                    (1, 6),
-                    (1, 7),
+                    Move::standard((0, 1)),
+                    Move::standard((2, 1)),
+                    Move::standard((3, 1)),
+                    Move::standard((4, 1)),
+                    Move::standard((5, 1)),
+                    Move::standard((6, 1)),
+                    Move::standard((7, 1)),
+                    Move::standard((1, 0)),
+                    Move::standard((1, 2)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::standard((1, 6)),
+                    Move::standard((1, 7)),
                 ]
             );
         }
@@ -2435,7 +2446,7 @@ mod piece_tests {
             let valid_moves = rook.valid_moves(&pieces.into());
             assert_eq!(
                 valid_moves,
-                vec![(5, 4), (6, 4), (7, 4), (4, 3), (4, 5), (4, 6), (4, 7),]
+                vec![Move::standard((5, 4)), Move::standard((6, 4)), Move::standard((7, 4)), Move::standard((4, 3)), Move::standard((4, 5)), Move::standard((4, 6)), Move::standard((4, 7)),]
             );
         }
 
@@ -2454,14 +2465,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    (0, 1),
-                    (2, 1),
-                    (3, 1),
-                    (4, 1),
-                    (5, 1),
-                    (1, 0),
-                    (1, 2),
-                    (1, 3),
+                    Move::standard((0, 1)),
+                    Move::standard((2, 1)),
+                    Move::standard((3, 1)),
+                    Move::standard((4, 1)),
+                    Move::standard((5, 1)),
+                    Move::standard((1, 0)),
+                    Move::standard((1, 2)),
+                    Move::standard((1, 3)),
                 ]
             );
         }

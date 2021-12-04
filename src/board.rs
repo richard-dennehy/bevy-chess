@@ -4,6 +4,8 @@ use bevy::prelude::*;
 use bevy::utils::HashMap;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
 use std::fmt::Formatter;
+use crate::moves_calculator::{Move, MoveKind};
+use crate::moves_calculator::MoveKind::QueensideCastle;
 
 pub struct BoardPlugin;
 impl Plugin for BoardPlugin {
@@ -155,18 +157,23 @@ pub struct CastlingData {
 }
 
 // todo circular dependency between move calculator and board module isn't ideal
+// todo adding a Move type with a `kind` might make a lot of this simpler (i.e. could just check the `kind` rather than having to figure out what kind of move it is)
 #[derive(Default)]
-pub struct AllValidMoves(HashMap<Entity, Vec<(u8, u8)>>);
+pub struct AllValidMoves(HashMap<Entity, Vec<Move>>);
 
 impl AllValidMoves {
-    pub fn get(&self, piece_id: Entity) -> &Vec<(u8, u8)> {
+    pub fn get(&self, piece_id: Entity) -> &Vec<Move> {
         self.0
             .get(&piece_id)
             .expect("all pieces should have moves calculated")
     }
 
-    pub fn insert(&mut self, piece_id: Entity, moves: Vec<(u8, u8)>) {
+    pub fn insert(&mut self, piece_id: Entity, moves: Vec<Move>) {
         self.0.insert(piece_id, moves);
+    }
+
+    pub fn contains(&self, piece_id: Entity, x: u8, y: u8) -> bool {
+        self.get(piece_id).iter().any(|m| m.x == x && m.y == y)
     }
 }
 
@@ -267,9 +274,7 @@ fn colour_squares(
         };
 
         if let Some(piece) = selected_piece.0 {
-            let valid_moves = valid_moves.get(piece);
-
-            if valid_moves.contains(&(square.x, square.y)) {
+            if valid_moves.contains(piece, square.x, square.y) {
                 *material = materials.valid_selection.clone();
                 return;
             };
@@ -430,16 +435,18 @@ pub fn move_piece(
 
     if let Some(piece_id) = selected_piece.0 {
         let valid_moves = all_valid_moves.get(piece_id);
-        if valid_moves.contains(&(square.x, square.y)) {
+        let maybe_valid_move = valid_moves.into_iter().find(|m| m.x == square.x && m.y == square.y);
+        if let Some(valid_move) = maybe_valid_move {
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
             let last_pawn_double_step = special_move_data.last_pawn_double_step.take();
 
             if piece.kind == PieceKind::Pawn {
                 if let Some(double_step) = last_pawn_double_step {
-                    if piece.x == double_step.x {
+                    // todo adding piece id to EnPassant kind might simplify this
+                    if valid_move.kind == MoveKind::EnPassant {
                         commands.entity(double_step.pawn_id).insert(Taken);
                     }
-                } else if piece.x.abs_diff(square.x) == 2 {
+                } else if valid_move.kind == MoveKind::PawnDoubleStep {
                     let _ = special_move_data
                         .last_pawn_double_step
                         .insert(LastPawnDoubleStep {
@@ -454,7 +461,8 @@ pub fn move_piece(
 
                 castling_data.king_moved = true;
 
-                if !king_moved && (square.y == 0 || square.y == 7) {
+                // todo merge variants; add rook id and target squares
+                if !king_moved && valid_move.kind == MoveKind::KingsideCastle {
                     let (rook_id, _) = pieces
                         .iter_mut()
                         .find(|(_, other)| other.x == square.x && other.y == square.y)
@@ -463,21 +471,37 @@ pub fn move_piece(
                     // move king by 2 towards rook
                     commands.entity(piece_id).insert(MovePiece {
                         target_x: square.x as f32,
-                        target_y: if square.y == 0 { 2.0 } else { 6.0 },
+                        target_y: 6.0,
                     });
 
                     // move rook 1 past king
                     commands.entity(rook_id).insert(MovePiece {
                         target_x: square.x as f32,
-                        target_y: if square.y == 0 { 3.0 } else { 5.0 },
+                        target_y: 5.0,
                     });
 
-                    if square.y == 0 {
-                        castling_data.queenside_rook_moved = true;
-                    } else {
-                        castling_data.kingside_rook_moved = true;
-                    };
+                    castling_data.kingside_rook_moved = true;
+                    game_state.set(GameState::MovingPiece).unwrap();
+                    return;
+                } else if !king_moved && valid_move.kind == QueensideCastle {
+                    let (rook_id, _) = pieces
+                        .iter_mut()
+                        .find(|(_, other)| other.x == square.x && other.y == square.y)
+                        .expect("castling without a rook");
 
+                    // move king by 2 towards rook
+                    commands.entity(piece_id).insert(MovePiece {
+                        target_x: square.x as f32,
+                        target_y: 2.0,
+                    });
+
+                    // move rook 1 past king
+                    commands.entity(rook_id).insert(MovePiece {
+                        target_x: square.x as f32,
+                        target_y: 3.0,
+                    });
+
+                    castling_data.queenside_rook_moved = true;
                     game_state.set(GameState::MovingPiece).unwrap();
                     return;
                 }
