@@ -26,27 +26,37 @@ impl Move {
         }
     }
 
-    pub fn en_passant(x: u8, y: u8) -> Self {
+    pub fn en_passant(x: u8, y: u8, target_id: Entity) -> Self {
         Move {
             x,
             y,
-            kind: MoveKind::EnPassant,
+            kind: MoveKind::EnPassant { target_id },
         }
     }
 
-    pub fn kingside_castle(x: u8, y: u8) -> Self {
+    pub fn kingside_castle(x: u8, y: u8, rook_id: Entity) -> Self {
         Move {
             x,
             y,
-            kind: MoveKind::KingsideCastle,
+            kind: MoveKind::Castle {
+                rook_id,
+                king_target_y: 6,
+                rook_target_y: 5,
+                kingside: true,
+            },
         }
     }
 
-    pub fn queenside_castle(x: u8, y: u8) -> Self {
+    pub fn queenside_castle(x: u8, y: u8, rook_id: Entity) -> Self {
         Move {
             x,
             y,
-            kind: MoveKind::QueensideCastle,
+            kind: MoveKind::Castle {
+                rook_id,
+                king_target_y: 2,
+                rook_target_y: 3,
+                kingside: false,
+            },
         }
     }
 }
@@ -55,9 +65,15 @@ impl Move {
 pub enum MoveKind {
     Standard,
     PawnDoubleStep,
-    EnPassant,
-    KingsideCastle,
-    QueensideCastle,
+    EnPassant {
+        target_id: Entity,
+    },
+    Castle {
+        rook_id: Entity,
+        king_target_y: u8,
+        rook_target_y: u8,
+        kingside: bool,
+    },
 }
 
 pub fn calculate_valid_moves(
@@ -167,6 +183,7 @@ impl<'game> MoveCalculator<'game> {
                             let ep_move = Move::en_passant(
                                 (piece.x as i8 + direction) as u8,
                                 (piece.y as i8 - offset) as u8,
+                                pawn_double_step.pawn_id,
                             );
                             (*entity, ep_move)
                         })
@@ -276,14 +293,11 @@ impl<'game> MoveCalculator<'game> {
                         pieces_attacking_king
                             .iter()
                             .all(|(opposite_entity, opposite_piece)| {
-                                let is_en_passant_target = self
-                                    .special_move_data
-                                    .last_pawn_double_step
-                                    .as_ref()
-                                    .map_or(false, |e| e.pawn_id == *opposite_entity);
-
-                                let can_take_en_passant =
-                                    is_en_passant_target && piece_move.kind == MoveKind::EnPassant;
+                                let can_take_en_passant = if let MoveKind::EnPassant { target_id } = piece_move.kind {
+                                    target_id == *opposite_entity
+                                } else {
+                                    false
+                                };
 
                                 let can_take_directly = opposite_piece.x == piece_move.x
                                     && opposite_piece.y == piece_move.y;
@@ -311,9 +325,9 @@ impl<'game> MoveCalculator<'game> {
             self.board_state.get(first_move.0, first_move.1).is_none()
                 && self.board_state.get(second_move.0, second_move.1).is_none()
                 && self.opposite_pieces.iter().all(|(entity, _)| {
-                !(all_moves.contains(*entity, first_move.0, first_move.1)
-                    || all_moves.contains(*entity, second_move.0, second_move.1))
-            })
+                    !(all_moves.contains(*entity, first_move.0, first_move.1)
+                        || all_moves.contains(*entity, second_move.0, second_move.1))
+                })
         };
 
         let mut moves = vec![];
@@ -329,13 +343,20 @@ impl<'game> MoveCalculator<'game> {
                         .get(passed_through.0, passed_through.1)
                         .is_none()
                 {
-                    moves.push(Move::queenside_castle(self.king.x, 0));
+                    let rook_id = self.player_pieces.iter().find_map(|(entity, piece)| {
+                        (piece.x == self.king.x && piece.y == 0).then(|| *entity)
+                    }).expect("queenside castling without a rook");
+                    moves.push(Move::queenside_castle(self.king.x, 0, rook_id));
                 }
             }
 
             if !castling_data.kingside_rook_moved {
                 if king_does_not_pass_through_attacked_square(1) {
-                    moves.push(Move::kingside_castle(self.king.x, 7));
+                    let rook_id = self.player_pieces.iter().find_map(|(entity, piece)| {
+                        (piece.x == self.king.x && piece.y == 7).then(|| *entity)
+                    }).expect("kingside castling without a rook");
+
+                    moves.push(Move::kingside_castle(self.king.x, 7, rook_id));
                 }
             }
         };

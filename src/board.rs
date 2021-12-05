@@ -5,7 +5,6 @@ use bevy::utils::HashMap;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
 use std::fmt::Formatter;
 use crate::moves_calculator::{Move, MoveKind};
-use crate::moves_calculator::MoveKind::QueensideCastle;
 
 pub struct BoardPlugin;
 impl Plugin for BoardPlugin {
@@ -438,14 +437,11 @@ pub fn move_piece(
         let maybe_valid_move = valid_moves.into_iter().find(|m| m.x == square.x && m.y == square.y);
         if let Some(valid_move) = maybe_valid_move {
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
-            let last_pawn_double_step = special_move_data.last_pawn_double_step.take();
+            let _ = special_move_data.last_pawn_double_step.take();
 
             if piece.kind == PieceKind::Pawn {
-                if let Some(double_step) = last_pawn_double_step {
-                    // todo adding piece id to EnPassant kind might simplify this
-                    if valid_move.kind == MoveKind::EnPassant {
-                        commands.entity(double_step.pawn_id).insert(Taken);
-                    }
+                if let MoveKind::EnPassant { target_id } = valid_move.kind {
+                    commands.entity(target_id).insert(Taken);
                 } else if valid_move.kind == MoveKind::PawnDoubleStep {
                     let _ = special_move_data
                         .last_pawn_double_step
@@ -457,60 +453,36 @@ pub fn move_piece(
                 }
             } else if piece.kind == PieceKind::King {
                 let mut castling_data = special_move_data.castling_data_mut(player_turn.0);
-                let king_moved = castling_data.king_moved;
-
                 castling_data.king_moved = true;
 
-                // todo merge variants; add rook id and target squares
-                if !king_moved && valid_move.kind == MoveKind::KingsideCastle {
-                    let (rook_id, _) = pieces
-                        .iter_mut()
-                        .find(|(_, other)| other.x == square.x && other.y == square.y)
-                        .expect("castling without a rook");
-
-                    // move king by 2 towards rook
+                if let MoveKind::Castle {
+                    rook_id, king_target_y, rook_target_y, kingside,
+                } = valid_move.kind {
                     commands.entity(piece_id).insert(MovePiece {
                         target_x: square.x as f32,
-                        target_y: 6.0,
+                        target_y: king_target_y as f32,
                     });
 
-                    // move rook 1 past king
                     commands.entity(rook_id).insert(MovePiece {
                         target_x: square.x as f32,
-                        target_y: 5.0,
+                        target_y: rook_target_y as f32,
                     });
 
-                    castling_data.kingside_rook_moved = true;
-                    game_state.set(GameState::MovingPiece).unwrap();
-                    return;
-                } else if !king_moved && valid_move.kind == QueensideCastle {
-                    let (rook_id, _) = pieces
-                        .iter_mut()
-                        .find(|(_, other)| other.x == square.x && other.y == square.y)
-                        .expect("castling without a rook");
+                    if kingside {
+                        castling_data.kingside_rook_moved = true;
+                    } else {
+                        castling_data.queenside_rook_moved = true;
+                    }
 
-                    // move king by 2 towards rook
-                    commands.entity(piece_id).insert(MovePiece {
-                        target_x: square.x as f32,
-                        target_y: 2.0,
-                    });
-
-                    // move rook 1 past king
-                    commands.entity(rook_id).insert(MovePiece {
-                        target_x: square.x as f32,
-                        target_y: 3.0,
-                    });
-
-                    castling_data.queenside_rook_moved = true;
                     game_state.set(GameState::MovingPiece).unwrap();
                     return;
                 }
             } else if piece.kind == PieceKind::Rook {
                 let mut castling_data = special_move_data.castling_data_mut(player_turn.0);
 
-                if !castling_data.queenside_rook_moved && piece.y == 0 {
+                if piece.y == 0 {
                     castling_data.queenside_rook_moved = true;
-                } else if !castling_data.kingside_rook_moved && piece.y == 7 {
+                } else if piece.y == 7 {
                     castling_data.kingside_rook_moved = true;
                 }
             }

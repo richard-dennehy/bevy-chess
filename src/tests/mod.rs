@@ -65,9 +65,9 @@ mod board_tests {
 
     mod checking_for_check {
         use super::*;
-        use crate::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn, SpecialMoveData};
-        use bevy::prelude::*;
+        use crate::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn, SpecialMoveData, CastlingData};
         use crate::moves_calculator::Move;
+        use bevy::prelude::*;
 
         fn setup() -> (World, SystemStage) {
             let mut world = World::new();
@@ -75,7 +75,17 @@ mod board_tests {
             world.insert_resource(AllValidMoves::default());
             world.insert_resource(PlayerTurn(PieceColour::Black));
             world.insert_resource(State::new(GameState::NothingSelected));
-            world.insert_resource(SpecialMoveData::default());
+            world.insert_resource(SpecialMoveData {
+                last_pawn_double_step: None,
+                black_castling_data: CastlingData {
+                    king_moved: true,
+                    ..Default::default()
+                },
+                white_castling_data: CastlingData {
+                    king_moved: true,
+                    ..Default::default()
+                }
+            });
 
             let mut update_stage = SystemStage::parallel();
             update_stage.add_system_set(State::<GameState>::get_driver());
@@ -564,7 +574,10 @@ mod board_tests {
                 )
             });
 
-            assert_eq!(all_valid_moves.get(blocking_pawn), &vec![Move::standard((6, 3))]);
+            assert_eq!(
+                all_valid_moves.get(blocking_pawn),
+                &vec![Move::standard((6, 3))]
+            );
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(game_state.current(), &GameState::NothingSelected);
@@ -643,7 +656,11 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(bishop_id),
-                &vec![Move::standard((3, 0)), Move::standard((4, 1)), Move::standard((5, 2))]
+                &vec![
+                    Move::standard((3, 0)),
+                    Move::standard((4, 1)),
+                    Move::standard((5, 2))
+                ]
             );
         }
 
@@ -693,7 +710,14 @@ mod board_tests {
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert!(all_valid_moves.get(pawn_id).is_empty());
-            assert_eq!(all_valid_moves.get(king_id), &vec![Move::standard((6, 3)), Move::standard((7, 3)), Move::standard((7, 5))]);
+            assert_eq!(
+                all_valid_moves.get(king_id),
+                &vec![
+                    Move::standard((6, 3)),
+                    Move::standard((7, 3)),
+                    Move::standard((7, 5))
+                ]
+            );
         }
 
         #[test]
@@ -748,10 +772,14 @@ mod board_tests {
 
     mod special_moves {
         use super::*;
-        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, LastPawnDoubleStep, GameState, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, Square, Taken, CastlingData, SpecialMoveData};
+        use crate::board::{
+            calculate_all_moves, move_piece, AllValidMoves, CastlingData, GameState,
+            LastPawnDoubleStep, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare,
+            SpecialMoveData, Square, Taken,
+        };
+        use crate::moves_calculator::Move;
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
-        use crate::moves_calculator::Move;
 
         trait WorldTestUtils {
             fn overwrite_resource<T: Component>(&mut self, resource: T);
@@ -789,11 +817,21 @@ mod board_tests {
             fn move_piece(&mut self, piece_id: Entity, x: u8, y: u8) {
                 let all_valid_moves = self.get_resource::<AllValidMoves>().unwrap();
                 let piece_moves = all_valid_moves.get(piece_id);
-                assert!(all_valid_moves.contains(piece_id, x, y), "({}, {}) is not a valid move; valid moves: {:?}", x, y, piece_moves);
+                assert!(
+                    all_valid_moves.contains(piece_id, x, y),
+                    "({}, {}) is not a valid move; valid moves: {:?}",
+                    x,
+                    y,
+                    piece_moves
+                );
 
                 let piece = self.get::<Piece>(piece_id).unwrap();
                 let turn = self.get_resource::<PlayerTurn>().unwrap();
-                assert_eq!(piece.colour, turn.0, "Moving {:?} piece on {:?}'s turn", piece.colour, turn.0);
+                assert_eq!(
+                    piece.colour, turn.0,
+                    "Moving {:?} piece on {:?}'s turn",
+                    piece.colour, turn.0
+                );
 
                 self.check_and_overwrite_state(
                     GameState::NothingSelected,
@@ -905,6 +943,10 @@ mod board_tests {
                 })
                 .id();
 
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.king_moved = true;
+            special_moves.white_castling_data.king_moved = true;
+
             stage.run(&mut world);
 
             world.move_piece(black_pawn, 4, 4);
@@ -983,6 +1025,10 @@ mod board_tests {
                 })
                 .id();
 
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.king_moved = true;
+            special_moves.white_castling_data.king_moved = true;
+
             stage.run(&mut world);
 
             // turn 0 move black pawn 2 steps forward
@@ -1001,7 +1047,10 @@ mod board_tests {
 
             stage.run(&mut world);
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(white_pawn), &vec![Move::standard((5, 3)), Move::en_passant(5, 4)]);
+            assert_eq!(
+                all_valid_moves.get(white_pawn),
+                &vec![Move::standard((5, 3)), Move::en_passant(5, 4, black_pawn)]
+            );
 
             world.move_piece(white_king, 1, 4);
             stage.run(&mut world);
@@ -1011,7 +1060,10 @@ mod board_tests {
 
             // check white pawn can't still move en passant
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(white_pawn), &vec![Move::standard((5, 3))]);
+            assert_eq!(
+                all_valid_moves.get(white_pawn),
+                &vec![Move::standard((5, 3))]
+            );
         }
 
         #[test]
@@ -1081,6 +1133,10 @@ mod board_tests {
                 y: 0,
             });
 
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.king_moved = true;
+            special_moves.white_castling_data.king_moved = true;
+
             stage.run(&mut world);
 
             world.move_piece(black_pawn, 4, 4);
@@ -1103,7 +1159,10 @@ mod board_tests {
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(white_king), &vec![]);
-            assert_eq!(all_valid_moves.get(white_pawn), &vec![Move::en_passant(5, 4)]);
+            assert_eq!(
+                all_valid_moves.get(white_pawn),
+                &vec![Move::en_passant(5, 4, black_pawn)]
+            );
         }
 
         #[test]
@@ -1175,6 +1234,10 @@ mod board_tests {
                 x: 0,
                 y: 3,
             });
+
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.king_moved = true;
+            special_moves.white_castling_data.king_moved = true;
 
             stage.run(&mut world);
 
@@ -1278,7 +1341,10 @@ mod board_tests {
             );
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(white_pawn), &vec![Move::standard((5, 3))]);
+            assert_eq!(
+                all_valid_moves.get(white_pawn),
+                &vec![Move::standard((5, 3))]
+            );
         }
 
         #[test]
@@ -1362,6 +1428,7 @@ mod board_tests {
 
             let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
             special_moves.white_castling_data.queenside_rook_moved = true;
+            special_moves.black_castling_data.king_moved = true;
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
 
@@ -1393,30 +1460,35 @@ mod board_tests {
                 })
                 .id();
 
-            let black_king = world.spawn().insert(Piece {
-                kind: PieceKind::King,
-                colour: PieceColour::Black,
-                x: 7,
-                y: 4,
-            }).id();
+            let black_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
 
-            world
+            let kingside_rook = world
                 .spawn()
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
                     x: 0,
                     y: 7,
-                });
+                })
+                .id();
 
-            world
+            let queenside_rook = world
                 .spawn()
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
                     x: 0,
                     y: 0,
-                });
+                })
+                .id();
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
             let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
@@ -1428,7 +1500,15 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::queenside_castle(0, 0), Move::kingside_castle(0, 7)]
+                &vec![
+                    Move::standard((0, 3)),
+                    Move::standard((0, 5)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::queenside_castle(0, 0, queenside_rook),
+                    Move::kingside_castle(0, 7, kingside_rook)
+                ]
             );
 
             world.move_piece(white_king, 0, 5);
@@ -1440,7 +1520,13 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 4)), Move::standard((0, 6)), Move::standard((1, 4)), Move::standard((1, 5)), Move::standard((1, 6))]
+                &vec![
+                    Move::standard((0, 4)),
+                    Move::standard((0, 6)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::standard((1, 6))
+                ]
             );
 
             world.move_piece(white_king, 0, 4);
@@ -1452,7 +1538,13 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5))]
+                &vec![
+                    Move::standard((0, 3)),
+                    Move::standard((0, 5)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5))
+                ]
             );
         }
 
@@ -1470,12 +1562,15 @@ mod board_tests {
                 })
                 .id();
 
-            let black_king = world.spawn().insert(Piece {
-                kind: PieceKind::King,
-                colour: PieceColour::Black,
-                x: 7,
-                y: 4,
-            }).id();
+            let black_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
 
             let white_kingside_rook = world
                 .spawn()
@@ -1484,16 +1579,18 @@ mod board_tests {
                     colour: PieceColour::White,
                     x: 0,
                     y: 7,
-                }).id();
+                })
+                .id();
 
-            world
+            let queenside_rook = world
                 .spawn()
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
                     x: 0,
                     y: 0,
-                });
+                })
+                .id();
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
             let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
@@ -1505,7 +1602,15 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::queenside_castle(0, 0), Move::kingside_castle(0, 7)]
+                &vec![
+                    Move::standard((0, 3)),
+                    Move::standard((0, 5)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::queenside_castle(0, 0, queenside_rook),
+                    Move::kingside_castle(0, 7, white_kingside_rook)
+                ]
             );
 
             world.move_piece(white_kingside_rook, 1, 7);
@@ -1517,7 +1622,14 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::queenside_castle(0, 0)]
+                &vec![
+                    Move::standard((0, 3)),
+                    Move::standard((0, 5)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::queenside_castle(0, 0, queenside_rook)
+                ]
             );
 
             world.move_piece(white_kingside_rook, 0, 7);
@@ -1529,7 +1641,14 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::queenside_castle(0, 0)]
+                &vec![
+                    Move::standard((0, 3)),
+                    Move::standard((0, 5)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::queenside_castle(0, 0, queenside_rook)
+                ]
             );
         }
 
@@ -1547,21 +1666,25 @@ mod board_tests {
                 })
                 .id();
 
-            let black_king = world.spawn().insert(Piece {
-                kind: PieceKind::King,
-                colour: PieceColour::Black,
-                x: 7,
-                y: 4,
-            }).id();
+            let black_king = world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
 
-            world
+            let kingside_rook = world
                 .spawn()
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
                     x: 0,
                     y: 7,
-                });
+                })
+                .id();
 
             let white_queenside_rook = world
                 .spawn()
@@ -1570,7 +1693,8 @@ mod board_tests {
                     colour: PieceColour::White,
                     x: 0,
                     y: 0,
-                }).id();
+                })
+                .id();
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
             let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
@@ -1582,7 +1706,15 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::queenside_castle(0, 0), Move::kingside_castle(0, 7)]
+                &vec![
+                    Move::standard((0, 3)),
+                    Move::standard((0, 5)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::queenside_castle(0, 0, white_queenside_rook),
+                    Move::kingside_castle(0, 7, kingside_rook)
+                ]
             );
 
             world.move_piece(white_queenside_rook, 1, 0);
@@ -1594,7 +1726,14 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::kingside_castle(0, 7)]
+                &vec![
+                    Move::standard((0, 3)),
+                    Move::standard((0, 5)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::kingside_castle(0, 7, kingside_rook)
+                ]
             );
 
             world.move_piece(white_queenside_rook, 0, 0);
@@ -1606,7 +1745,14 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::kingside_castle(0, 7)]
+                &vec![
+                    Move::standard((0, 3)),
+                    Move::standard((0, 5)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::kingside_castle(0, 7, kingside_rook)
+                ]
             );
         }
 
@@ -1624,30 +1770,29 @@ mod board_tests {
                 })
                 .id();
 
+            world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
+
             world.spawn().insert(Piece {
-                kind: PieceKind::King,
-                colour: PieceColour::Black,
-                x: 7,
-                y: 4,
-            }).id();
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 0,
+                y: 7,
+            });
 
-            world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    x: 0,
-                    y: 7,
-                });
-
-            world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    x: 0,
-                    y: 0,
-                });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 0,
+                y: 0,
+            });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
@@ -1662,7 +1807,12 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 4)), Move::standard((1, 5))]
+                &vec![
+                    Move::standard((0, 3)),
+                    Move::standard((0, 5)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5))
+                ]
             );
         }
 
@@ -1681,30 +1831,32 @@ mod board_tests {
                 })
                 .id();
 
-            world.spawn().insert(Piece {
-                kind: PieceKind::King,
-                colour: PieceColour::Black,
-                x: 7,
-                y: 4,
-            }).id();
-
             world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
+
+            let kingside_rook = world
                 .spawn()
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
                     x: 0,
                     y: 7,
-                });
+                })
+                .id();
 
-            world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    x: 0,
-                    y: 0,
-                });
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 0,
+                y: 0,
+            });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
@@ -1719,7 +1871,12 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 5)), Move::kingside_castle(0, 7)]
+                &vec![
+                    Move::standard((0, 5)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 5)),
+                    Move::kingside_castle(0, 7, kingside_rook)
+                ]
             );
         }
 
@@ -1737,37 +1894,45 @@ mod board_tests {
                 })
                 .id();
 
-            world.spawn().insert(Piece {
-                kind: PieceKind::King,
-                colour: PieceColour::Black,
-                x: 7,
-                y: 4,
-            }).id();
-
             world
+                .spawn()
+                .insert(Piece {
+                    kind: PieceKind::King,
+                    colour: PieceColour::Black,
+                    x: 7,
+                    y: 4,
+                })
+                .id();
+
+            let kingside_rook = world
                 .spawn()
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
                     x: 0,
                     y: 7,
-                });
+                })
+                .id();
 
-            world
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::White,
+                x: 0,
+                y: 0,
+            });
+
+            let black_knight = world
                 .spawn()
                 .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    x: 0,
-                    y: 0,
-                });
+                    kind: PieceKind::Knight,
+                    colour: PieceColour::Black,
+                    x: 2,
+                    y: 1,
+                })
+                .id();
 
-            let black_knight = world.spawn().insert(Piece {
-                kind: PieceKind::Knight,
-                colour: PieceColour::Black,
-                x: 2,
-                y: 1,
-            }).id();
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.king_moved = true;
 
             stage.run(&mut world);
 
@@ -1777,7 +1942,14 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_king),
-                &vec![Move::standard((0, 3)), Move::standard((0, 5)), Move::standard((1, 3)), Move::standard((1, 4)), Move::standard((1, 5)), Move::kingside_castle(0, 7)]
+                &vec![
+                    Move::standard((0, 3)),
+                    Move::standard((0, 5)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                    Move::kingside_castle(0, 7, kingside_rook)
+                ]
             );
         }
     }
@@ -1787,8 +1959,8 @@ mod piece_tests {
     use crate::pieces::*;
 
     mod valid_moves_of_a_white_pawn {
-        use crate::moves_calculator::Move;
         use super::*;
+        use crate::moves_calculator::Move;
 
         fn pawn(x: u8, y: u8) -> Piece {
             Piece {
@@ -1800,8 +1972,8 @@ mod piece_tests {
         }
 
         mod when_the_board_is_empty {
-            use crate::moves_calculator::Move;
             use super::*;
+            use crate::moves_calculator::Move;
 
             #[test]
             fn should_only_allow_single_move_forward_after_first_move() {
@@ -1816,7 +1988,10 @@ mod piece_tests {
                 let pawn = pawn(1, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                assert_eq!(valid_moves, vec![Move::standard((2, 0)), Move::pawn_double_step(3, 0)]);
+                assert_eq!(
+                    valid_moves,
+                    vec![Move::standard((2, 0)), Move::pawn_double_step(3, 0)]
+                );
             }
 
             #[test]
@@ -1848,7 +2023,14 @@ mod piece_tests {
             ];
 
             let valid_moves = pawn.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![Move::standard((3, 1)), Move::standard((3, 2)), Move::standard((3, 0))]);
+            assert_eq!(
+                valid_moves,
+                vec![
+                    Move::standard((3, 1)),
+                    Move::standard((3, 2)),
+                    Move::standard((3, 0))
+                ]
+            );
         }
 
         #[test]
@@ -1917,8 +2099,8 @@ mod piece_tests {
     }
 
     mod valid_moves_of_a_black_pawn {
-        use crate::moves_calculator::Move;
         use super::*;
+        use crate::moves_calculator::Move;
 
         fn pawn(x: u8, y: u8) -> Piece {
             Piece {
@@ -1930,8 +2112,8 @@ mod piece_tests {
         }
 
         mod when_the_board_is_empty {
-            use crate::moves_calculator::Move;
             use super::*;
+            use crate::moves_calculator::Move;
 
             #[test]
             fn should_only_allow_single_move_forward_after_first_move() {
@@ -1946,7 +2128,10 @@ mod piece_tests {
                 let pawn = pawn(6, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                assert_eq!(valid_moves, vec![Move::standard((5, 0)), Move::pawn_double_step(4, 0)]);
+                assert_eq!(
+                    valid_moves,
+                    vec![Move::standard((5, 0)), Move::pawn_double_step(4, 0)]
+                );
             }
 
             #[test]
@@ -1978,7 +2163,14 @@ mod piece_tests {
             ];
 
             let valid_moves = pawn.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![Move::standard((4, 1)), Move::standard((4, 2)), Move::standard((4, 0))]);
+            assert_eq!(
+                valid_moves,
+                vec![
+                    Move::standard((4, 1)),
+                    Move::standard((4, 2)),
+                    Move::standard((4, 0))
+                ]
+            );
         }
 
         #[test]
@@ -2047,8 +2239,8 @@ mod piece_tests {
     }
 
     mod valid_moves_of_a_king {
-        use crate::moves_calculator::Move;
         use super::*;
+        use crate::moves_calculator::Move;
 
         fn king(x: u8, y: u8) -> Piece {
             Piece {
@@ -2082,7 +2274,14 @@ mod piece_tests {
         fn should_not_be_able_to_move_off_the_board() {
             let king = king(0, 0);
             let valid_moves = king.valid_moves(&[king].into());
-            assert_eq!(valid_moves, vec![Move::standard((0, 1)), Move::standard((1, 0)), Move::standard((1, 1))]);
+            assert_eq!(
+                valid_moves,
+                vec![
+                    Move::standard((0, 1)),
+                    Move::standard((1, 0)),
+                    Move::standard((1, 1))
+                ]
+            );
         }
 
         #[test]
@@ -2097,13 +2296,22 @@ mod piece_tests {
             let pieces = [king, pawn(2, 1), pawn(2, 2), pawn(1, 2)];
 
             let valid_moves = king.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![Move::standard((0, 0)), Move::standard((0, 1)), Move::standard((0, 2)), Move::standard((1, 0)), Move::standard((2, 0))]);
+            assert_eq!(
+                valid_moves,
+                vec![
+                    Move::standard((0, 0)),
+                    Move::standard((0, 1)),
+                    Move::standard((0, 2)),
+                    Move::standard((1, 0)),
+                    Move::standard((2, 0))
+                ]
+            );
         }
     }
 
     mod valid_moves_of_a_queen {
-        use crate::moves_calculator::Move;
         use super::*;
+        use crate::moves_calculator::Move;
 
         fn queen(x: u8, y: u8) -> Piece {
             Piece {
@@ -2228,13 +2436,21 @@ mod piece_tests {
             ];
             let valid_moves = queen.valid_moves(&pieces.into());
 
-            assert_eq!(valid_moves, vec![Move::standard((6, 4)), Move::standard((5, 5)), Move::standard((4, 6)), Move::standard((3, 7)),]);
+            assert_eq!(
+                valid_moves,
+                vec![
+                    Move::standard((6, 4)),
+                    Move::standard((5, 5)),
+                    Move::standard((4, 6)),
+                    Move::standard((3, 7)),
+                ]
+            );
         }
     }
 
     mod valid_moves_of_a_bishop {
-        use crate::moves_calculator::Move;
         use super::*;
+        use crate::moves_calculator::Move;
 
         fn bishop(x: u8, y: u8) -> Piece {
             Piece {
@@ -2279,7 +2495,14 @@ mod piece_tests {
             let valid_moves = bishop.valid_moves(&pieces.into());
             assert_eq!(
                 valid_moves,
-                vec![Move::standard((0, 0)), Move::standard((2, 0)), Move::standard((2, 2)), Move::standard((0, 2)), Move::standard((3, 3)), Move::standard((4, 4)),]
+                vec![
+                    Move::standard((0, 0)),
+                    Move::standard((2, 0)),
+                    Move::standard((2, 2)),
+                    Move::standard((0, 2)),
+                    Move::standard((3, 3)),
+                    Move::standard((4, 4)),
+                ]
             );
         }
 
@@ -2297,14 +2520,22 @@ mod piece_tests {
             let valid_moves = bishop.valid_moves(&pieces.into());
             assert_eq!(
                 valid_moves,
-                vec![Move::standard((0, 0)), Move::standard((2, 0)), Move::standard((2, 2)), Move::standard((0, 2)), Move::standard((3, 3)), Move::standard((4, 4)), Move::standard((5, 5)),]
+                vec![
+                    Move::standard((0, 0)),
+                    Move::standard((2, 0)),
+                    Move::standard((2, 2)),
+                    Move::standard((0, 2)),
+                    Move::standard((3, 3)),
+                    Move::standard((4, 4)),
+                    Move::standard((5, 5)),
+                ]
             );
         }
     }
 
     mod valid_moves_of_a_knight {
-        use crate::moves_calculator::Move;
         use super::*;
+        use crate::moves_calculator::Move;
 
         fn knight(x: u8, y: u8) -> Piece {
             Piece {
@@ -2338,7 +2569,10 @@ mod piece_tests {
         fn should_not_be_able_to_move_off_the_board() {
             let knight = knight(0, 0);
             let valid_moves = knight.valid_moves(&[knight].into());
-            assert_eq!(valid_moves, vec![Move::standard((2, 1)), Move::standard((1, 2)),]);
+            assert_eq!(
+                valid_moves,
+                vec![Move::standard((2, 1)), Move::standard((1, 2)),]
+            );
         }
 
         #[test]
@@ -2390,13 +2624,22 @@ mod piece_tests {
             let pieces = [knight, pawn(0, 1), pawn(4, 1), pawn(3, 0)];
 
             let valid_moves = knight.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![Move::standard((0, 3)), Move::standard((4, 3)), Move::standard((1, 0)), Move::standard((1, 4)), Move::standard((3, 4)),]);
+            assert_eq!(
+                valid_moves,
+                vec![
+                    Move::standard((0, 3)),
+                    Move::standard((4, 3)),
+                    Move::standard((1, 0)),
+                    Move::standard((1, 4)),
+                    Move::standard((3, 4)),
+                ]
+            );
         }
     }
 
     mod valid_moves_of_a_rook {
-        use crate::moves_calculator::Move;
         use super::*;
+        use crate::moves_calculator::Move;
 
         fn rook(x: u8, y: u8) -> Piece {
             Piece {
@@ -2446,7 +2689,15 @@ mod piece_tests {
             let valid_moves = rook.valid_moves(&pieces.into());
             assert_eq!(
                 valid_moves,
-                vec![Move::standard((5, 4)), Move::standard((6, 4)), Move::standard((7, 4)), Move::standard((4, 3)), Move::standard((4, 5)), Move::standard((4, 6)), Move::standard((4, 7)),]
+                vec![
+                    Move::standard((5, 4)),
+                    Move::standard((6, 4)),
+                    Move::standard((7, 4)),
+                    Move::standard((4, 3)),
+                    Move::standard((4, 5)),
+                    Move::standard((4, 6)),
+                    Move::standard((4, 7)),
+                ]
             );
         }
 
