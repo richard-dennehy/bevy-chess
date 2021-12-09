@@ -1,9 +1,9 @@
 use crate::board::{BoardState, GameState, MovePiece, PlayerTurn};
+use crate::moves_calculator::{Move, PotentialMove};
 use bevy::prelude::*;
 use std::cmp::Ordering;
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::fmt::Formatter;
-use crate::moves_calculator::Move;
 
 pub struct PiecePlugin;
 impl Plugin for PiecePlugin {
@@ -58,7 +58,6 @@ impl PieceColour {
         }
     }
 
-    // todo use these elsewhere
     pub fn starting_front_row(&self) -> u8 {
         match self {
             PieceColour::White => 1,
@@ -69,7 +68,7 @@ impl PieceColour {
     pub fn starting_back_row(&self) -> u8 {
         match self {
             PieceColour::White => 0,
-            PieceColour::Black => 7
+            PieceColour::Black => 7,
         }
     }
 }
@@ -87,6 +86,66 @@ impl core::fmt::Display for PieceColour {
     }
 }
 
+pub struct PiecePath(Vec<PotentialMove>);
+
+pub struct Obstruction {
+    pub x: u8,
+    pub y: u8,
+    pub colour: PieceColour,
+}
+
+impl PiecePath {
+    pub fn single(piece_move: Move) -> Self {
+        Self(vec![PotentialMove {
+            move_: piece_move,
+            blocked_by: None,
+        }])
+    }
+
+    pub fn legal_path(&self) -> impl Iterator<Item = Move> + '_ {
+        self.0.iter().map_while(|potential_move| {
+            if potential_move.blocked_by.is_none() {
+                Some(potential_move.move_)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn obstructions(&self) -> Vec<Obstruction> {
+        self.0
+            .iter()
+            .filter_map(|potential_move| {
+                potential_move.blocked_by.map(|blockage| Obstruction {
+                    x: potential_move.move_.x,
+                    y: potential_move.move_.y,
+                    colour: blockage,
+                })
+            })
+            .collect()
+    }
+
+    pub fn contains(&self, x: u8, y: u8) -> bool {
+        self.0
+            .iter()
+            .any(|potential| potential.move_.x == x && potential.move_.y == y)
+    }
+
+    pub fn truncate_to(&self, x: u8, y: u8) -> Option<Self> {
+        if self.contains(x, y) {
+            Some(PiecePath(
+                self.0
+                    .iter()
+                    .take_while(|p_move| p_move.move_.x != x && p_move.move_.y != y)
+                    .copied()
+                    .collect(),
+            ))
+        } else {
+            None
+        }
+    }
+}
+
 impl Piece {
     // TODO
     //   might be better off calculating list of potential moves and noting which moves are blocked
@@ -94,6 +153,10 @@ impl Piece {
     //   a piece would open up a path to the King, or if taking a piece with the King would leave it
     //   in check.
     //   Still need AllValidMoves, but need a function to convert from this return type to that
+    pub fn new_valid_moves(&self, _board: &BoardState) -> Vec<PiecePath> {
+        todo!()
+    }
+
     pub fn valid_moves(&self, board: &BoardState) -> Vec<Move> {
         let (x, y) = (self.x as i8, self.y as i8);
 
@@ -260,6 +323,7 @@ impl Piece {
     /// This assumes that `target` is not the same position as `(self.x, self.y)`.
     ///
     /// Used to calculate if moving a piece would block or unblock this piece's movement to the king
+    // todo delete
     pub fn path_to_take_piece_at(&self, target: (u8, u8)) -> Vec<(u8, u8)> {
         let (x, y) = (self.x as i8, self.y as i8);
         let (t_x, t_y) = (target.0 as i8, target.1 as i8);

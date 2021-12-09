@@ -156,7 +156,6 @@ pub struct CastlingData {
 }
 
 // todo circular dependency between move calculator and board module isn't ideal
-// todo adding a Move type with a `kind` might make a lot of this simpler (i.e. could just check the `kind` rather than having to figure out what kind of move it is)
 #[derive(Default)]
 pub struct AllValidMoves(HashMap<Entity, Vec<Move>>);
 

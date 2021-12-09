@@ -1,6 +1,13 @@
 use crate::board::{AllValidMoves, BoardState, SpecialMoveData};
-use crate::pieces::{Piece, PieceColour, PieceKind};
+use crate::pieces::{Piece, PieceColour, PieceKind, PiecePath};
 use bevy::prelude::Entity;
+use bevy::utils::HashMap;
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct PotentialMove {
+    pub move_: Move,
+    pub blocked_by: Option<PieceColour>,
+}
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Move {
@@ -114,61 +121,88 @@ struct MoveCalculator<'game> {
 
 type Moves = Vec<Move>;
 type PieceMoves = (Entity, Moves);
-type EnPassantMove = (Entity, Move);
+type EnPassantMove = (Entity, PiecePath);
+
+struct AllPotentialMoves(HashMap<Entity, Vec<PiecePath>>);
+
+impl AllPotentialMoves {
+    fn new() -> Self {
+        Self(HashMap::default())
+    }
+
+    fn get(&self, entity: Entity) -> &[PiecePath] {
+        self.0
+            .get(&entity)
+            .expect("missing move calculation")
+            .as_slice()
+    }
+
+    fn insert(&mut self, entity: Entity, potential_path: Vec<PiecePath>) {
+        let _ = self.0.insert(entity, potential_path);
+    }
+
+    fn can_reach(&self, entity: Entity, x: u8, y: u8) -> bool {
+        self.path_to(entity, x, y).is_some()
+    }
+
+    fn path_to(&self, entity: Entity, x: u8, y: u8) -> Option<PiecePath> {
+        self.get(entity).iter().find_map(|path| path.truncate_to(x, y))
+    }
+}
 
 impl<'game> MoveCalculator<'game> {
     fn calculate_valid_moves(self) -> AllValidMoves {
-        let mut all_moves = AllValidMoves::default();
+        let mut all_potential_moves = AllPotentialMoves::new();
 
-        let (en_passant_left, en_passant_right) = self.find_en_passant_pieces();
+        let (mut en_passant_left, mut en_passant_right) = self.find_en_passant_pieces();
 
         self.player_pieces
             .iter()
             .chain(self.opposite_pieces.iter())
             .copied()
             .for_each(|(entity, piece)| {
-                let mut valid_moves = piece.valid_moves(&self.board_state);
+                let mut valid_moves = piece.new_valid_moves(&self.board_state);
 
-                if let Some((left, ep_move)) = en_passant_left {
+                if let Some((left, ep_move)) = en_passant_left.take() {
                     if entity == left {
                         valid_moves.push(ep_move);
                     }
-                } else if let Some((right, ep_move)) = en_passant_right {
+                } else if let Some((right, ep_move)) = en_passant_right.take() {
                     if entity == right {
                         valid_moves.push(ep_move);
                     }
                 };
 
-                let _ = all_moves.insert(entity, valid_moves);
+                all_potential_moves.insert(entity, valid_moves);
             });
 
-        let pieces_attacking_king = self.pieces_attacking_king(&all_moves);
-        // TODO inline these
-        let safe_king_moves = self.calculate_safe_king_moves(&all_moves);
-        let safe_player_moves = self.calculate_safe_player_moves(&all_moves);
+        let pieces_attacking_king = self.pieces_attacking_king(&all_potential_moves);
 
         if !pieces_attacking_king.is_empty() {
-            let counter_moves = self.calculate_check_counter_moves(
-                safe_king_moves,
-                safe_player_moves,
-                pieces_attacking_king,
-            );
+            let counter_moves =
+                self.calculate_check_counter_moves(pieces_attacking_king, &all_potential_moves);
 
+            let mut all_moves = AllValidMoves::default();
             counter_moves.into_iter().for_each(|(entity, moves)| {
                 let _ = all_moves.insert(entity, moves);
             });
+            all_moves
         } else {
-            let mut safe_king_moves = safe_king_moves;
-            let mut castling_moves = self.calculate_castling_moves(&all_moves);
+            let safe_player_moves = self.calculate_safe_player_moves(&all_potential_moves);
+
+            let mut safe_king_moves = self.calculate_safe_king_moves(&all_potential_moves);
+            let mut castling_moves = self.calculate_castling_moves(&all_potential_moves);
             safe_king_moves.append(&mut castling_moves);
+
+            let mut all_moves = AllValidMoves::default();
 
             let _ = all_moves.insert(self.king_entity, safe_king_moves);
             safe_player_moves.into_iter().for_each(|(entity, moves)| {
                 let _ = all_moves.insert(entity, moves);
             });
-        }
 
-        all_moves
+            all_moves
+        }
     }
 
     fn find_en_passant_pieces(&self) -> (Option<EnPassantMove>, Option<EnPassantMove>) {
@@ -185,7 +219,7 @@ impl<'game> MoveCalculator<'game> {
                                 (piece.y as i8 - offset) as u8,
                                 pawn_double_step.pawn_id,
                             );
-                            (*entity, ep_move)
+                            (*entity, PiecePath::single(ep_move))
                         })
                 })
             };
@@ -196,94 +230,103 @@ impl<'game> MoveCalculator<'game> {
         }
     }
 
-    fn calculate_safe_king_moves(&self, all_moves: &AllValidMoves) -> Moves {
-        all_moves
+    fn calculate_safe_king_moves(&self, potential_moves: &AllPotentialMoves) -> Moves {
+        potential_moves
             .get(self.king_entity)
             .into_iter()
+            .flat_map(|path| path.legal_path())
             .filter(|king_move| {
                 let (x, y) = (king_move.x, king_move.y);
 
-                !self.opposite_pieces.iter().any(|(entity, piece)| {
-                    // don't need to check which colour as `valid_moves` already handles same colour pieces
+                !self.opposite_pieces.iter().any(|(entity, _)| {
                     if self.board_state.get(x, y).is_some() {
-                        // awkward logic to check if any piece can move to the square once the current piece is taken
-                        piece
-                            .path_to_take_piece_at((x, y))
-                            .into_iter()
-                            .all(|(path_x, path_y)| {
-                                (path_x == x && path_y == y)
-                                    || self.board_state.get(path_x, path_y).is_none()
-                            })
+                        potential_moves.get(*entity).iter().all(|path| {
+                            path.obstructions()
+                                .first()
+                                .map(|obstruction| obstruction.x == x && obstruction.y == y)
+                                .unwrap_or(false)
+                        })
                     } else {
-                        all_moves.contains(*entity, x, y)
+                        potential_moves.can_reach(*entity, x, y)
                     }
                 })
             })
-            .copied()
             .collect()
     }
 
-    fn pieces_attacking_king(&self, all_moves: &AllValidMoves) -> Vec<(Entity, &Piece)> {
+    fn pieces_attacking_king(
+        &self,
+        potential_moves: &AllPotentialMoves,
+    ) -> Vec<(Entity, &Piece, PiecePath)> {
         self.opposite_pieces
             .iter()
-            .filter(|(entity, _)| all_moves.contains(*entity, self.king.x, self.king.y))
-            .copied()
+            .filter_map(|(entity, piece)| {
+                potential_moves
+                    .path_to(*entity, self.king.x, self.king.y)
+                    .map(|p| (*entity, *piece, p))
+            })
             .collect::<Vec<_>>()
     }
 
-    fn calculate_safe_player_moves(&self, all_moves: &AllValidMoves) -> Vec<PieceMoves> {
-        let potential_threats = self.calculate_potential_threats();
+    fn calculate_safe_player_moves(&self, potential_moves: &AllPotentialMoves) -> Vec<PieceMoves> {
+        let potential_threats = self.calculate_potential_threats(potential_moves);
 
         self.player_pieces
             .iter()
             .filter(|(entity, _)| *entity != self.king_entity)
             .map(|(entity, piece)| {
-                let safe_moves = all_moves
+                let safe_moves = potential_moves
                     .get(*entity)
                     .iter()
+                    .flat_map(PiecePath::legal_path)
                     .filter(|piece_move| {
                         // safe move iff: doesn't open up a path to the king, or stays within the same path, or takes the piece
-                        potential_threats.iter().all(|(_, threat)| {
-                            let path = threat.path_to_take_piece_at((self.king.x, self.king.y));
-                            !path.contains(&(piece.x, piece.y))
-                                || path.contains(&(piece_move.x, piece_move.y))
+                        potential_threats.iter().all(|(threat, path_to_king)| {
+                            // note: at this point, can assume that the path has exactly one obstruction,
+                            // and if this piece is in the path, it is the obstruction
+                            let currently_in_path = path_to_king.contains(piece.x, piece.y);
+                            let stays_in_path = path_to_king.contains(piece_move.x, piece_move.y);
+                            let captures_threat =
+                                piece_move.x == threat.x && piece_move.y == threat.y;
+
+                            captures_threat || !currently_in_path || stays_in_path
                         })
                     })
-                    .copied()
                     .collect::<Vec<_>>();
                 (*entity, safe_moves)
             })
             .collect()
     }
 
-    fn calculate_potential_threats(&self) -> Vec<(Entity, &'game Piece)> {
+    fn calculate_potential_threats(
+        &self,
+        potential_moves: &AllPotentialMoves,
+    ) -> Vec<(&'game Piece, PiecePath)> {
         self.opposite_pieces
             .iter()
-            .filter(|(_, piece)| {
-                let path = piece.path_to_take_piece_at((self.king.x, self.king.y));
+            .filter_map(|(entity, piece)| {
+                let Some(path) = potential_moves.path_to(*entity, self.king.x, self.king.y) else { return None };
 
-                if path.is_empty() {
-                    return false;
-                }
-
-                let obstructions = path
+                let obstructions = path.obstructions();
+                // if the path is blocked by 2+ pieces, or by a piece of the same colour, it can't put the king in check during this turn
+                let blocked = obstructions.len() >= 2
+                    || obstructions
                     .into_iter()
-                    .filter_map(|(x, y)| self.board_state.get(x, y).as_ref())
-                    .collect::<Vec<_>>();
+                    .any(|obs| obs.colour == self.turn.opposite());
 
-                // don't need to worry about pieces that are blocked by pieces of the same colour (as these can't be moved this turn) or pieces that are blocked by multiple pieces
-                !obstructions.contains(&&self.turn.opposite()) || obstructions.len() >= 2
+                (!blocked).then(|| (*piece, path))
             })
-            .copied()
             .collect()
     }
 
     fn calculate_check_counter_moves(
         &self,
-        safe_king_moves: Moves,
-        safe_moves: Vec<PieceMoves>,
-        pieces_attacking_king: Vec<(Entity, &Piece)>,
+        pieces_attacking_king: Vec<(Entity, &Piece, PiecePath)>,
+        potential_moves: &AllPotentialMoves,
     ) -> Vec<PieceMoves> {
+        let safe_king_moves = self.calculate_safe_king_moves(potential_moves);
+        let safe_moves = self.calculate_safe_player_moves(potential_moves);
+
         std::iter::once((self.king_entity, safe_king_moves))
             .chain(safe_moves.iter().map(|(entity, safe_piece_moves)| {
                 // this piece can only move if it can take or block the piece that has the king in check
@@ -292,19 +335,18 @@ impl<'game> MoveCalculator<'game> {
                     .filter(|piece_move| {
                         pieces_attacking_king
                             .iter()
-                            .all(|(opposite_entity, opposite_piece)| {
-                                let can_take_en_passant = if let MoveKind::EnPassant { target_id } = piece_move.kind {
-                                    target_id == *opposite_entity
-                                } else {
-                                    false
-                                };
+                            .all(|(opposite_entity, opposite_piece, path_to_king)| {
+                                let can_take_en_passant =
+                                    if let MoveKind::EnPassant { target_id } = piece_move.kind {
+                                        target_id == *opposite_entity
+                                    } else {
+                                        false
+                                    };
 
                                 let can_take_directly = opposite_piece.x == piece_move.x
                                     && opposite_piece.y == piece_move.y;
 
-                                let blocks_piece = opposite_piece
-                                    .path_to_take_piece_at((self.king.x, self.king.y))
-                                    .contains(&(piece_move.x, piece_move.y));
+                                let blocks_piece = path_to_king.contains(piece_move.x, piece_move.y);
 
                                 can_take_en_passant || can_take_directly || blocks_piece
                             })
@@ -317,7 +359,7 @@ impl<'game> MoveCalculator<'game> {
             .collect()
     }
 
-    fn calculate_castling_moves(&self, all_moves: &AllValidMoves) -> Moves {
+    fn calculate_castling_moves(&self, potential_moves: &AllPotentialMoves) -> Moves {
         let king_does_not_pass_through_attacked_square = |dir: i8| {
             let first_move = (self.king.x, ((self.king.y as i8) + dir) as u8);
             let second_move = (self.king.x, ((self.king.y as i8) + (dir * 2)) as u8);
@@ -325,8 +367,8 @@ impl<'game> MoveCalculator<'game> {
             self.board_state.get(first_move.0, first_move.1).is_none()
                 && self.board_state.get(second_move.0, second_move.1).is_none()
                 && self.opposite_pieces.iter().all(|(entity, _)| {
-                    !(all_moves.contains(*entity, first_move.0, first_move.1)
-                        || all_moves.contains(*entity, second_move.0, second_move.1))
+                    !(potential_moves.can_reach(*entity, first_move.0, first_move.1)
+                        || potential_moves.can_reach(*entity, second_move.0, second_move.1))
                 })
         };
 
@@ -343,18 +385,26 @@ impl<'game> MoveCalculator<'game> {
                         .get(passed_through.0, passed_through.1)
                         .is_none()
                 {
-                    let rook_id = self.player_pieces.iter().find_map(|(entity, piece)| {
-                        (piece.x == self.king.x && piece.y == 0).then(|| *entity)
-                    }).expect("queenside castling without a rook");
+                    let rook_id = self
+                        .player_pieces
+                        .iter()
+                        .find_map(|(entity, piece)| {
+                            (piece.x == self.king.x && piece.y == 0).then(|| *entity)
+                        })
+                        .expect("queenside castling without a rook");
                     moves.push(Move::queenside_castle(self.king.x, 0, rook_id));
                 }
             }
 
             if !castling_data.kingside_rook_moved {
                 if king_does_not_pass_through_attacked_square(1) {
-                    let rook_id = self.player_pieces.iter().find_map(|(entity, piece)| {
-                        (piece.x == self.king.x && piece.y == 7).then(|| *entity)
-                    }).expect("kingside castling without a rook");
+                    let rook_id = self
+                        .player_pieces
+                        .iter()
+                        .find_map(|(entity, piece)| {
+                            (piece.x == self.king.x && piece.y == 7).then(|| *entity)
+                        })
+                        .expect("kingside castling without a rook");
 
                     moves.push(Move::kingside_castle(self.king.x, 7, rook_id));
                 }
