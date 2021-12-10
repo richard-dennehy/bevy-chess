@@ -147,14 +147,163 @@ impl PiecePath {
 }
 
 impl Piece {
-    // TODO
-    //   might be better off calculating list of potential moves and noting which moves are blocked
-    //   by other pieces (should only need the colour) - this would make it easier to check if moving
-    //   a piece would open up a path to the King, or if taking a piece with the King would leave it
-    //   in check.
-    //   Still need AllValidMoves, but need a function to convert from this return type to that
-    pub fn new_valid_moves(&self, _board: &BoardState) -> Vec<PiecePath> {
-        todo!()
+    pub fn new_valid_moves(&self, board: &BoardState) -> Vec<PiecePath> {
+        let potential_move = |x: u8, y: u8| PotentialMove {
+            move_: Move::standard((x, y)),
+            blocked_by: *board.get(x, y),
+        };
+
+        let horizontal_left = || {
+            if self.x == 0 {
+                return None;
+            }
+
+            let moves = (0..self.x)
+                .rev()
+                .map(|new_x| potential_move(new_x, self.y))
+                .collect();
+
+            Some(PiecePath(moves))
+        };
+
+        let horizontal_right = || {
+            if self.x == 7 {
+                return None;
+            }
+
+            let moves = ((self.x + 1)..8)
+                .map(|new_x| potential_move(new_x, self.y))
+                .collect();
+
+            Some(PiecePath(moves))
+        };
+
+        let vertical_up = || {
+            if self.y == 7 {
+                return None;
+            }
+
+            let moves = ((self.y + 1)..8)
+                .map(|new_y| potential_move(self.x, new_y))
+                .collect();
+
+            Some(PiecePath(moves))
+        };
+
+        let vertical_down = || {
+            if self.y == 0 {
+                return None;
+            }
+
+            let moves = (0..self.y)
+                .map(|new_y| potential_move(self.x, new_y))
+                .collect();
+
+            Some(PiecePath(moves))
+        };
+
+        let diagonal_up_left = || {
+            if self.x == 0 || self.y == 7 {
+                return None;
+            }
+
+            let moves = (0..self.x)
+                .rev()
+                .flat_map(|x| ((self.y + 1)..8).map(move |y| (x, y)))
+                .map(|(new_x, new_y)| potential_move(new_x, new_y))
+                .collect();
+
+            Some(PiecePath(moves))
+        };
+
+        let diagonal_up_right = || {
+            if self.x == 7 || self.y == 7 {
+                return None;
+            }
+
+            let moves = ((self.x + 1)..8)
+                .flat_map(|x| ((self.y + 1)..8).map(move |y| (x, y)))
+                .map(|(new_x, new_y)| potential_move(new_x, new_y))
+                .collect();
+
+            Some(PiecePath(moves))
+        };
+
+        let diagonal_down_left = || {
+            if self.x == 0 || self.y == 0 {
+                return None;
+            }
+
+            let moves = (0..self.x)
+                .rev()
+                .flat_map(|x| (0..self.y).rev().map(move |y| (x, y)))
+                .map(|(new_x, new_y)| potential_move(new_x, new_y))
+                .collect();
+
+            Some(PiecePath(moves))
+        };
+
+        let diagonal_down_right = || {
+            if self.x == 7 || self.y == 0 {
+                return None;
+            }
+
+            let moves = ((self.x + 1)..8)
+                .flat_map(|x| (0..self.y).rev().map(move |y| (x, y)))
+                .map(|(new_x, new_y)| potential_move(new_x, new_y))
+                .collect();
+
+            Some(PiecePath(moves))
+        };
+
+        let (x, y) = (self.x as i8, self.y as i8);
+
+        let is_on_board = |(x, y): (i8, i8)| {
+            ((0..8).contains(&x) && (0..8).contains(&y)).then(|| (x as u8, y as u8))
+        };
+
+        match self.kind {
+            PieceKind::King => [
+                (x - 1, y - 1),
+                (x - 1, y),
+                (x - 1, y + 1),
+                (x, y - 1),
+                (x, y + 1),
+                (x + 1, y - 1),
+                (x + 1, y),
+                (x + 1, y + 1),
+            ]
+            .into_iter()
+            .filter_map(is_on_board)
+            .map(Move::standard)
+            .map(PiecePath::single)
+            .collect(),
+            PieceKind::Queen => [
+                horizontal_left(),
+                horizontal_right(),
+                vertical_up(),
+                vertical_down(),
+                diagonal_up_left(),
+                diagonal_up_right(),
+                diagonal_down_left(),
+                diagonal_down_right(),
+            ]
+            .into_iter()
+            .flatten()
+            .collect(),
+            PieceKind::Bishop => [
+                diagonal_up_left(),
+                diagonal_up_right(),
+                diagonal_down_left(),
+                diagonal_down_right(),
+            ]
+            .into_iter()
+            .flatten()
+            .collect(),
+            PieceKind::Knight => vec![],
+            PieceKind::Rook => vec![],
+            PieceKind::Pawn => vec![],
+        }
     }
 
     pub fn valid_moves(&self, board: &BoardState) -> Vec<Move> {
