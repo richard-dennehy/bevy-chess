@@ -219,7 +219,12 @@ impl<'game> MoveCalculator<'game> {
                                 (piece.y as i8 - offset) as u8,
                                 pawn_double_step.pawn_id,
                             );
-                            (*entity, PiecePath::single(ep_move))
+                            // note: this move can't be blocked, because if there was a piece in the way,
+                            // then the enemy pawn wouldn't have been able to double step over it
+                            (*entity, PiecePath::single(PotentialMove {
+                                move_: ep_move,
+                                blocked_by: None,
+                            }))
                         })
                 })
             };
