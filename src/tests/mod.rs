@@ -65,7 +65,10 @@ mod board_tests {
 
     mod checking_for_check {
         use super::*;
-        use crate::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn, SpecialMoveData, CastlingData};
+        use crate::board::{
+            calculate_all_moves, AllValidMoves, CastlingData, GameState, PlayerTurn,
+            SpecialMoveData,
+        };
         use crate::moves_calculator::Move;
         use bevy::prelude::*;
 
@@ -84,7 +87,7 @@ mod board_tests {
                 white_castling_data: CastlingData {
                     king_moved: true,
                     ..Default::default()
-                }
+                },
             });
 
             let mut update_stage = SystemStage::parallel();
@@ -1956,11 +1959,23 @@ mod board_tests {
 }
 
 mod piece_tests {
+    use crate::moves_calculator::{Move, PotentialMove};
     use crate::pieces::*;
+
+    fn single_move_path((x, y): (u8, u8)) -> PiecePath {
+        PiecePath::single(PotentialMove::new(Move::standard((x, y)), None))
+    }
+
+    fn unblocked_move((x, y): (u8, u8)) -> PotentialMove {
+        PotentialMove::new(Move::standard((x, y)), None)
+    }
+
+    fn blocked_move((x, y): (u8, u8), by: PieceColour) -> PotentialMove {
+        PotentialMove::new(Move::standard((x, y)), Some(by))
+    }
 
     mod valid_moves_of_a_white_pawn {
         use super::*;
-        use crate::moves_calculator::Move;
 
         fn pawn(x: u8, y: u8) -> Piece {
             Piece {
@@ -1980,7 +1995,7 @@ mod piece_tests {
                 let pawn = pawn(2, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                assert_eq!(valid_moves, vec![Move::standard((3, 0))]);
+                assert_eq!(valid_moves, vec![single_move_path((3, 0))]);
             }
 
             #[test]
@@ -1988,9 +2003,13 @@ mod piece_tests {
                 let pawn = pawn(1, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
+                let move_ = Move::pawn_double_step(3, 0);
                 assert_eq!(
                     valid_moves,
-                    vec![Move::standard((2, 0)), Move::pawn_double_step(3, 0)]
+                    vec![
+                        single_move_path((2, 0)),
+                        PiecePath::single(PotentialMove::new(move_, None))
+                    ]
                 );
             }
 
@@ -2026,9 +2045,9 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((3, 1)),
-                    Move::standard((3, 2)),
-                    Move::standard((3, 0))
+                    single_move_path((3, 1)),
+                    PiecePath::single(blocked_move((3, 2), PieceColour::Black)),
+                    PiecePath::single(blocked_move((3, 0), PieceColour::Black)),
                 ]
             );
         }
@@ -2081,7 +2100,7 @@ mod piece_tests {
             ];
 
             let valid_moves = pawn.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![Move::standard((2, 0))]);
+            assert_eq!(valid_moves, vec![single_move_path((2, 0))]);
 
             let pieces = [
                 Piece {
@@ -2100,7 +2119,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_black_pawn {
         use super::*;
-        use crate::moves_calculator::Move;
 
         fn pawn(x: u8, y: u8) -> Piece {
             Piece {
@@ -2120,7 +2138,7 @@ mod piece_tests {
                 let pawn = pawn(5, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                assert_eq!(valid_moves, vec![Move::standard((4, 0))]);
+                assert_eq!(valid_moves, vec![single_move_path((4, 0))]);
             }
 
             #[test]
@@ -2130,7 +2148,10 @@ mod piece_tests {
 
                 assert_eq!(
                     valid_moves,
-                    vec![Move::standard((5, 0)), Move::pawn_double_step(4, 0)]
+                    vec![
+                        single_move_path((5, 0)),
+                        PiecePath::single(PotentialMove::new(Move::pawn_double_step(4, 0), None))
+                    ]
                 );
             }
 
@@ -2166,9 +2187,9 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((4, 1)),
-                    Move::standard((4, 2)),
-                    Move::standard((4, 0))
+                    single_move_path((4, 1)),
+                    PiecePath::single(blocked_move((4, 2), PieceColour::White)),
+                    PiecePath::single(blocked_move((4, 0), PieceColour::White)),
                 ]
             );
         }
@@ -2221,7 +2242,7 @@ mod piece_tests {
             ];
 
             let valid_moves = pawn.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![Move::standard((5, 0))]);
+            assert_eq!(valid_moves, vec![single_move_path((5, 0))]);
 
             let pieces = [
                 Piece {
@@ -2240,7 +2261,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_king {
         use super::*;
-        use crate::moves_calculator::Move;
 
         fn king(x: u8, y: u8) -> Piece {
             Piece {
@@ -2258,14 +2278,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 0)),
-                    Move::standard((0, 1)),
-                    Move::standard((0, 2)),
-                    Move::standard((1, 0)),
-                    Move::standard((1, 2)),
-                    Move::standard((2, 0)),
-                    Move::standard((2, 1)),
-                    Move::standard((2, 2))
+                    single_move_path((0, 0)),
+                    single_move_path((0, 1)),
+                    single_move_path((0, 2)),
+                    single_move_path((1, 0)),
+                    single_move_path((1, 2)),
+                    single_move_path((2, 0)),
+                    single_move_path((2, 1)),
+                    single_move_path((2, 2))
                 ]
             );
         }
@@ -2277,9 +2297,9 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 1)),
-                    Move::standard((1, 0)),
-                    Move::standard((1, 1))
+                    single_move_path((0, 1)),
+                    single_move_path((1, 0)),
+                    single_move_path((1, 1))
                 ]
             );
         }
@@ -2299,11 +2319,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 0)),
-                    Move::standard((0, 1)),
-                    Move::standard((0, 2)),
-                    Move::standard((1, 0)),
-                    Move::standard((2, 0))
+                    single_move_path((0, 0)),
+                    single_move_path((0, 1)),
+                    single_move_path((0, 2)),
+                    single_move_path((1, 0)),
+                    PiecePath::single(blocked_move((1, 2), PieceColour::Black)),
+                    single_move_path((2, 0)),
+                    PiecePath::single(blocked_move((2, 1), PieceColour::Black)),
+                    PiecePath::single(blocked_move((2, 2), PieceColour::Black)),
                 ]
             );
         }
@@ -2311,7 +2334,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_queen {
         use super::*;
-        use crate::moves_calculator::Move;
 
         fn queen(x: u8, y: u8) -> Piece {
             Piece {
@@ -2329,29 +2351,35 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 0)),
-                    Move::standard((2, 0)),
-                    Move::standard((2, 2)),
-                    Move::standard((0, 2)),
-                    Move::standard((3, 3)),
-                    Move::standard((4, 4)),
-                    Move::standard((5, 5)),
-                    Move::standard((6, 6)),
-                    Move::standard((7, 7)),
-                    Move::standard((0, 1)),
-                    Move::standard((2, 1)),
-                    Move::standard((3, 1)),
-                    Move::standard((4, 1)),
-                    Move::standard((5, 1)),
-                    Move::standard((6, 1)),
-                    Move::standard((7, 1)),
-                    Move::standard((1, 0)),
-                    Move::standard((1, 2)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::standard((1, 6)),
-                    Move::standard((1, 7))
+                    PiecePath::new(vec![
+                        unblocked_move((2, 1)),
+                        unblocked_move((3, 1)),
+                        unblocked_move((4, 1)),
+                        unblocked_move((5, 1)),
+                        unblocked_move((6, 1)),
+                        unblocked_move((7, 1)),
+                    ]),
+                    single_move_path((0, 1)),
+                    single_move_path((1, 0)),
+                    PiecePath::new(vec![
+                        unblocked_move((1, 2)),
+                        unblocked_move((1, 3)),
+                        unblocked_move((1, 4)),
+                        unblocked_move((1, 5)),
+                        unblocked_move((1, 6)),
+                        unblocked_move((1, 7))
+                    ]),
+                    single_move_path((2, 0)),
+                    PiecePath::new(vec![
+                        unblocked_move((2, 2)),
+                        unblocked_move((3, 3)),
+                        unblocked_move((4, 4)),
+                        unblocked_move((5, 5)),
+                        unblocked_move((6, 6)),
+                        unblocked_move((7, 7)),
+                    ]),
+                    single_move_path((0, 0)),
+                    single_move_path((0, 2)),
                 ]
             );
         }
@@ -2371,15 +2399,35 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 0)),
-                    Move::standard((2, 0)),
-                    Move::standard((2, 2)),
-                    Move::standard((0, 2)),
-                    Move::standard((0, 1)),
-                    Move::standard((2, 1)),
-                    Move::standard((3, 1)),
-                    Move::standard((4, 1)),
-                    Move::standard((1, 0)),
+                    PiecePath::new(vec![
+                        unblocked_move((2, 1)),
+                        unblocked_move((3, 1)),
+                        unblocked_move((4, 1)),
+                        blocked_move((5, 1), PieceColour::Black),
+                        unblocked_move((6, 1)),
+                        unblocked_move((7, 1)),
+                    ]),
+                    single_move_path((0, 1)),
+                    single_move_path((1, 0)),
+                    PiecePath::new(vec![
+                        blocked_move((1, 2), PieceColour::Black),
+                        unblocked_move((1, 3)),
+                        unblocked_move((1, 4)),
+                        unblocked_move((1, 5)),
+                        unblocked_move((1, 6)),
+                        unblocked_move((1, 7))
+                    ]),
+                    single_move_path((2, 0)),
+                    PiecePath::new(vec![
+                        unblocked_move((2, 2)),
+                        blocked_move((3, 3), PieceColour::Black),
+                        unblocked_move((4, 4)),
+                        unblocked_move((5, 5)),
+                        unblocked_move((6, 6)),
+                        unblocked_move((7, 7)),
+                    ]),
+                    single_move_path((0, 0)),
+                    single_move_path((0, 2)),
                 ]
             );
         }
@@ -2399,18 +2447,35 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 0)),
-                    Move::standard((2, 0)),
-                    Move::standard((2, 2)),
-                    Move::standard((0, 2)),
-                    Move::standard((3, 3)),
-                    Move::standard((0, 1)),
-                    Move::standard((2, 1)),
-                    Move::standard((3, 1)),
-                    Move::standard((4, 1)),
-                    Move::standard((5, 1)),
-                    Move::standard((1, 0)),
-                    Move::standard((1, 2)),
+                    PiecePath::new(vec![
+                        unblocked_move((2, 1)),
+                        unblocked_move((3, 1)),
+                        unblocked_move((4, 1)),
+                        blocked_move((5, 1), PieceColour::White),
+                        unblocked_move((6, 1)),
+                        unblocked_move((7, 1)),
+                    ]),
+                    single_move_path((0, 1)),
+                    single_move_path((1, 0)),
+                    PiecePath::new(vec![
+                        blocked_move((1, 2), PieceColour::White),
+                        unblocked_move((1, 3)),
+                        unblocked_move((1, 4)),
+                        unblocked_move((1, 5)),
+                        unblocked_move((1, 6)),
+                        unblocked_move((1, 7))
+                    ]),
+                    single_move_path((2, 0)),
+                    PiecePath::new(vec![
+                        unblocked_move((2, 2)),
+                        blocked_move((3, 3), PieceColour::White),
+                        unblocked_move((4, 4)),
+                        unblocked_move((5, 5)),
+                        unblocked_move((6, 6)),
+                        unblocked_move((7, 7)),
+                    ]),
+                    single_move_path((0, 0)),
+                    single_move_path((0, 2)),
                 ]
             );
         }
@@ -2439,10 +2504,37 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((6, 4)),
-                    Move::standard((5, 5)),
-                    Move::standard((4, 6)),
-                    Move::standard((3, 7)),
+                    PiecePath::new(vec![
+                        blocked_move((6, 3), PieceColour::Black),
+                        unblocked_move((5, 3)),
+                        unblocked_move((4, 3)),
+                        unblocked_move((3, 3)),
+                        unblocked_move((2, 3)),
+                        unblocked_move((1, 3)),
+                        unblocked_move((0, 3))
+                    ]),
+                    PiecePath::new(vec![
+                        blocked_move((7, 2), PieceColour::Black),
+                        unblocked_move((7, 1)),
+                        unblocked_move((7, 0))
+                    ]),
+                    PiecePath::new(vec![
+                        blocked_move((7, 4), PieceColour::Black),
+                        unblocked_move((7, 5)),
+                        unblocked_move((7, 6)),
+                        unblocked_move((7, 7))
+                    ]),
+                    PiecePath::new(vec![
+                        blocked_move((6, 2), PieceColour::Black),
+                        unblocked_move((5, 1)),
+                        unblocked_move((4, 0))
+                    ]),
+                    PiecePath::new(vec![
+                        unblocked_move((6, 4)),
+                        unblocked_move((5, 5)),
+                        unblocked_move((4, 6)),
+                        unblocked_move((3, 7))
+                    ]),
                 ]
             );
         }
@@ -2450,7 +2542,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_bishop {
         use super::*;
-        use crate::moves_calculator::Move;
 
         fn bishop(x: u8, y: u8) -> Piece {
             Piece {
@@ -2468,15 +2559,17 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 0)),
-                    Move::standard((2, 0)),
-                    Move::standard((2, 2)),
-                    Move::standard((0, 2)),
-                    Move::standard((3, 3)),
-                    Move::standard((4, 4)),
-                    Move::standard((5, 5)),
-                    Move::standard((6, 6)),
-                    Move::standard((7, 7)),
+                    single_move_path((2, 0)),
+                    PiecePath::new(vec![
+                        unblocked_move((2, 2)),
+                        unblocked_move((3, 3)),
+                        unblocked_move((4, 4)),
+                        unblocked_move((5, 5)),
+                        unblocked_move((6, 6)),
+                        unblocked_move((7, 7)),
+                    ]),
+                    single_move_path((0, 0)),
+                    single_move_path((0, 2)),
                 ]
             );
         }
@@ -2496,12 +2589,17 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 0)),
-                    Move::standard((2, 0)),
-                    Move::standard((2, 2)),
-                    Move::standard((0, 2)),
-                    Move::standard((3, 3)),
-                    Move::standard((4, 4)),
+                    single_move_path((2, 0)),
+                    PiecePath::new(vec![
+                        unblocked_move((2, 2)),
+                        unblocked_move((3, 3)),
+                        unblocked_move((4, 4)),
+                        blocked_move((5, 5), PieceColour::Black),
+                        unblocked_move((6, 6)),
+                        unblocked_move((7, 7)),
+                    ]),
+                    single_move_path((0, 0)),
+                    single_move_path((0, 2)),
                 ]
             );
         }
@@ -2521,13 +2619,17 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 0)),
-                    Move::standard((2, 0)),
-                    Move::standard((2, 2)),
-                    Move::standard((0, 2)),
-                    Move::standard((3, 3)),
-                    Move::standard((4, 4)),
-                    Move::standard((5, 5)),
+                    single_move_path((2, 0)),
+                    PiecePath::new(vec![
+                        unblocked_move((2, 2)),
+                        unblocked_move((3, 3)),
+                        unblocked_move((4, 4)),
+                        blocked_move((5, 5), PieceColour::White),
+                        unblocked_move((6, 6)),
+                        unblocked_move((7, 7)),
+                    ]),
+                    single_move_path((0, 0)),
+                    single_move_path((0, 2)),
                 ]
             );
         }
@@ -2535,7 +2637,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_knight {
         use super::*;
-        use crate::moves_calculator::Move;
 
         fn knight(x: u8, y: u8) -> Piece {
             Piece {
@@ -2553,14 +2654,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 1)),
-                    Move::standard((0, 3)),
-                    Move::standard((4, 1)),
-                    Move::standard((4, 3)),
-                    Move::standard((1, 0)),
-                    Move::standard((1, 4)),
-                    Move::standard((3, 0)),
-                    Move::standard((3, 4)),
+                    single_move_path((0, 1)),
+                    single_move_path((0, 3)),
+                    single_move_path((4, 1)),
+                    single_move_path((4, 3)),
+                    single_move_path((1, 0)),
+                    single_move_path((1, 4)),
+                    single_move_path((3, 0)),
+                    single_move_path((3, 4)),
                 ]
             );
         }
@@ -2571,7 +2672,7 @@ mod piece_tests {
             let valid_moves = knight.valid_moves(&[knight].into());
             assert_eq!(
                 valid_moves,
-                vec![Move::standard((2, 1)), Move::standard((1, 2)),]
+                vec![single_move_path((2, 1)), single_move_path((1, 2)),]
             );
         }
 
@@ -2600,14 +2701,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 1)),
-                    Move::standard((0, 3)),
-                    Move::standard((4, 1)),
-                    Move::standard((4, 3)),
-                    Move::standard((1, 0)),
-                    Move::standard((1, 4)),
-                    Move::standard((3, 0)),
-                    Move::standard((3, 4)),
+                    single_move_path((0, 1)),
+                    single_move_path((0, 3)),
+                    single_move_path((4, 1)),
+                    single_move_path((4, 3)),
+                    single_move_path((1, 0)),
+                    single_move_path((1, 4)),
+                    single_move_path((3, 0)),
+                    single_move_path((3, 4)),
                 ]
             );
         }
@@ -2627,11 +2728,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 3)),
-                    Move::standard((4, 3)),
-                    Move::standard((1, 0)),
-                    Move::standard((1, 4)),
-                    Move::standard((3, 4)),
+                    PiecePath::single(blocked_move((0, 1), PieceColour::Black)),
+                    single_move_path((0, 3)),
+                    PiecePath::single(blocked_move((4, 1), PieceColour::Black)),
+                    single_move_path((4, 3)),
+                    single_move_path((1, 0)),
+                    single_move_path((1, 4)),
+                    PiecePath::single(blocked_move((3, 0), PieceColour::Black)),
+                    single_move_path((3, 4)),
                 ]
             );
         }
@@ -2639,7 +2743,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_rook {
         use super::*;
-        use crate::moves_calculator::Move;
 
         fn rook(x: u8, y: u8) -> Piece {
             Piece {
@@ -2657,20 +2760,24 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 1)),
-                    Move::standard((2, 1)),
-                    Move::standard((3, 1)),
-                    Move::standard((4, 1)),
-                    Move::standard((5, 1)),
-                    Move::standard((6, 1)),
-                    Move::standard((7, 1)),
-                    Move::standard((1, 0)),
-                    Move::standard((1, 2)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::standard((1, 6)),
-                    Move::standard((1, 7)),
+                    single_move_path((0, 1)),
+                    PiecePath::new(vec![
+                        unblocked_move((2, 1)),
+                        unblocked_move((3, 1)),
+                        unblocked_move((4, 1)),
+                        unblocked_move((5, 1)),
+                        unblocked_move((6, 1)),
+                        unblocked_move((7, 1)),
+                    ]),
+                    PiecePath::new(vec![
+                        unblocked_move((1, 2)),
+                        unblocked_move((1, 3)),
+                        unblocked_move((1, 4)),
+                        unblocked_move((1, 5)),
+                        unblocked_move((1, 6)),
+                        unblocked_move((1, 7)),
+                    ]),
+                    single_move_path((1, 0)),
                 ]
             );
         }
@@ -2690,13 +2797,28 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((5, 4)),
-                    Move::standard((6, 4)),
-                    Move::standard((7, 4)),
-                    Move::standard((4, 3)),
-                    Move::standard((4, 5)),
-                    Move::standard((4, 6)),
-                    Move::standard((4, 7)),
+                    PiecePath::new(vec![
+                        blocked_move((3, 4), PieceColour::Black),
+                        unblocked_move((2, 4)),
+                        unblocked_move((1, 4)),
+                        unblocked_move((0, 4)),
+                    ]),
+                    PiecePath::new(vec![
+                        unblocked_move((5, 4)),
+                        unblocked_move((6, 4)),
+                        unblocked_move((7, 4)),
+                    ]),
+                    PiecePath::new(vec![
+                        unblocked_move((4, 5)),
+                        unblocked_move((4, 6)),
+                        unblocked_move((4, 7)),
+                    ]),
+                    PiecePath::new(vec![
+                        unblocked_move((4, 3)),
+                        blocked_move((4, 2), PieceColour::Black),
+                        unblocked_move((4, 1)),
+                        unblocked_move((4, 0)),
+                    ]),
                 ]
             );
         }
@@ -2716,14 +2838,24 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    Move::standard((0, 1)),
-                    Move::standard((2, 1)),
-                    Move::standard((3, 1)),
-                    Move::standard((4, 1)),
-                    Move::standard((5, 1)),
-                    Move::standard((1, 0)),
-                    Move::standard((1, 2)),
-                    Move::standard((1, 3)),
+                    single_move_path((0, 1)),
+                    PiecePath::new(vec![
+                        unblocked_move((2, 1)),
+                        unblocked_move((3, 1)),
+                        unblocked_move((4, 1)),
+                        blocked_move((5, 1), PieceColour::White),
+                        unblocked_move((6, 1)),
+                        unblocked_move((7, 1)),
+                    ]),
+                    PiecePath::new(vec![
+                        unblocked_move((1, 2)),
+                        blocked_move((1, 3), PieceColour::White),
+                        unblocked_move((1, 4)),
+                        unblocked_move((1, 5)),
+                        unblocked_move((1, 6)),
+                        unblocked_move((1, 7)),
+                    ]),
+                    single_move_path((1, 0)),
                 ]
             );
         }

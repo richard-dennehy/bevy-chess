@@ -86,8 +86,10 @@ impl core::fmt::Display for PieceColour {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct PiecePath(Vec<PotentialMove>);
 
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Obstruction {
     pub x: u8,
     pub y: u8,
@@ -95,6 +97,10 @@ pub struct Obstruction {
 }
 
 impl PiecePath {
+    pub fn new(potential_moves: Vec<PotentialMove>) -> Self {
+        Self(potential_moves)
+    }
+
     pub fn single(potential_move: PotentialMove) -> Self {
         Self(vec![potential_move])
     }
@@ -154,13 +160,17 @@ impl PiecePath {
 }
 
 impl Piece {
-    pub fn new_valid_moves(&self, board: &BoardState) -> Vec<PiecePath> {
+    pub fn valid_moves(&self, board: &BoardState) -> Vec<PiecePath> {
         let potential_move = |(x, y): (u8, u8)| PotentialMove {
             move_: Move::standard((x, y)),
             blocked_by: *board.get(x, y),
         };
 
-        let horizontal_left = || {
+        let up = || {
+            PiecePath::from_iterator(((self.x + 1)..8).map(|new_x| potential_move((new_x, self.y))))
+        };
+
+        let down = || {
             PiecePath::from_iterator(
                 (0..self.x)
                     .rev()
@@ -168,47 +178,60 @@ impl Piece {
             )
         };
 
-        let horizontal_right = || {
-            PiecePath::from_iterator(((self.x + 1)..8).map(|new_x| potential_move((new_x, self.y))))
+        let left = || {
+            PiecePath::from_iterator(
+                (0..self.y)
+                    .rev()
+                    .map(|new_y| potential_move((self.x, new_y))),
+            )
         };
 
-        let vertical_up = || {
+        let right = || {
             PiecePath::from_iterator(((self.y + 1)..8).map(|new_y| potential_move((self.x, new_y))))
         };
 
-        let vertical_down =
-            || PiecePath::from_iterator((0..self.y).map(|new_y| potential_move((self.x, new_y))));
+        let up_left = || {
+            PiecePath::from_iterator(
+                ((self.x + 1)..8)
+                    .filter_map(|new_x| {
+                        let diff = self.x.abs_diff(new_x);
+                        (diff <= self.y).then(|| (new_x, self.y - diff))
+                    })
+                    .map(potential_move),
+            )
+        };
 
-        let diagonal_up_left = || {
+        let up_right = || {
+            PiecePath::from_iterator(
+                ((self.x + 1)..8)
+                    .filter_map(|new_x| {
+                        let new_y = self.y + self.x.abs_diff(new_x);
+                        (new_y < 8).then(|| (new_x, new_y))
+                    })
+                    .map(potential_move),
+            )
+        };
+
+        let down_left = || {
             PiecePath::from_iterator(
                 (0..self.x)
                     .rev()
-                    .flat_map(|x| ((self.y + 1)..8).map(move |y| (x, y)))
+                    .filter_map(|new_x| {
+                        let diff = self.x.abs_diff(new_x);
+                        (diff <= self.y).then(|| (new_x, self.y - diff))
+                    })
                     .map(potential_move),
             )
         };
 
-        let diagonal_up_right = || {
-            PiecePath::from_iterator(
-                ((self.x + 1)..8)
-                    .flat_map(|x| ((self.y + 1)..8).map(move |y| (x, y)))
-                    .map(potential_move),
-            )
-        };
-
-        let diagonal_down_left = || {
+        let down_right = || {
             PiecePath::from_iterator(
                 (0..self.x)
                     .rev()
-                    .flat_map(|x| (0..self.y).rev().map(move |y| (x, y)))
-                    .map(potential_move),
-            )
-        };
-
-        let diagonal_down_right = || {
-            PiecePath::from_iterator(
-                ((self.x + 1)..8)
-                    .flat_map(|x| (0..self.y).rev().map(move |y| (x, y)))
+                    .filter_map(|new_x| {
+                        let new_y = self.y + self.x.abs_diff(new_x);
+                        (new_y < 8).then(|| (new_x, new_y))
+                    })
                     .map(potential_move),
             )
         };
@@ -236,23 +259,23 @@ impl Piece {
             .map(PiecePath::single)
             .collect(),
             PieceKind::Queen => [
-                horizontal_left(),
-                horizontal_right(),
-                vertical_up(),
-                vertical_down(),
-                diagonal_up_left(),
-                diagonal_up_right(),
-                diagonal_down_left(),
-                diagonal_down_right(),
+                up(),
+                down(),
+                left(),
+                right(),
+                up_left(),
+                up_right(),
+                down_left(),
+                down_right(),
             ]
             .into_iter()
             .flatten()
             .collect(),
             PieceKind::Bishop => [
-                diagonal_up_left(),
-                diagonal_up_right(),
-                diagonal_down_left(),
-                diagonal_down_right(),
+                up_left(),
+                up_right(),
+                down_left(),
+                down_right(),
             ]
             .into_iter()
             .flatten()
@@ -272,15 +295,10 @@ impl Piece {
             .map(potential_move)
             .map(PiecePath::single)
             .collect(),
-            PieceKind::Rook => [
-                horizontal_left(),
-                horizontal_right(),
-                vertical_up(),
-                vertical_down(),
-            ]
-            .into_iter()
-            .flatten()
-            .collect(),
+            PieceKind::Rook => [down(), up(), right(), left()]
+                .into_iter()
+                .flatten()
+                .collect(),
             PieceKind::Pawn => {
                 // todo need to somehow handle the king moving diagonally to a pawn (such that the pawn can immediately take it next turn)
                 let direction = self.colour.pawn_direction();
@@ -299,10 +317,18 @@ impl Piece {
                     let y = y as u8;
 
                     let forward_one = potential_move((move_one, y));
-                    moves.push(PiecePath::single(forward_one));
-
                     if forward_one.blocked_by.is_none() {
-                        let forward_two = potential_move((move_two, y));
+                        moves.push(PiecePath::single(forward_one));
+                    }
+
+                    let forward_two = PotentialMove {
+                        move_: Move::pawn_double_step(move_two, y),
+                        blocked_by: *board.get(move_two, y),
+                    };
+                    if x == starting_row
+                        && forward_one.blocked_by.is_none()
+                        && forward_two.blocked_by.is_none()
+                    {
                         moves.push(PiecePath::single(forward_two))
                     };
 
@@ -317,11 +343,11 @@ impl Piece {
 
                     moves
                 }
-            },
+            }
         }
     }
 
-    pub fn valid_moves(&self, board: &BoardState) -> Vec<Move> {
+    pub fn old_valid_moves(&self, board: &BoardState) -> Vec<Move> {
         let (x, y) = (self.x as i8, self.y as i8);
 
         let is_on_board = |(x, y): (i8, i8)| {

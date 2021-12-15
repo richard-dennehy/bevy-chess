@@ -9,6 +9,12 @@ pub struct PotentialMove {
     pub blocked_by: Option<PieceColour>,
 }
 
+impl PotentialMove {
+    pub fn new(move_: Move, blocked_by: Option<PieceColour>) -> Self {
+        PotentialMove { move_, blocked_by }
+    }
+}
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Move {
     pub x: u8,
@@ -161,7 +167,7 @@ impl<'game> MoveCalculator<'game> {
             .chain(self.opposite_pieces.iter())
             .copied()
             .for_each(|(entity, piece)| {
-                let mut valid_moves = piece.new_valid_moves(&self.board_state);
+                let mut valid_moves = piece.valid_moves(&self.board_state);
 
                 if let Some((left, ep_move)) = en_passant_left.take() {
                     if entity == left {
