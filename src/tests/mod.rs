@@ -660,9 +660,9 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(bishop_id),
                 &vec![
-                    Move::standard((3, 0)),
+                    Move::standard((5, 2)),
                     Move::standard((4, 1)),
-                    Move::standard((5, 2))
+                    Move::standard((3, 0)),
                 ]
             );
         }
@@ -1962,8 +1962,8 @@ mod piece_tests {
     use crate::moves_calculator::{Move, PotentialMove};
     use crate::pieces::*;
 
-    fn single_move_path((x, y): (u8, u8)) -> PiecePath {
-        PiecePath::single(PotentialMove::new(Move::standard((x, y)), None))
+    fn single_move_path((x, y): (u8, u8), colour: PieceColour) -> PiecePath {
+        PiecePath::single(PotentialMove::new(Move::standard((x, y)), None), colour)
     }
 
     fn unblocked_move((x, y): (u8, u8)) -> PotentialMove {
@@ -1995,7 +1995,7 @@ mod piece_tests {
                 let pawn = pawn(2, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                assert_eq!(valid_moves, vec![single_move_path((3, 0))]);
+                assert_eq!(valid_moves, vec![single_move_path((3, 0), pawn.colour)]);
             }
 
             #[test]
@@ -2007,8 +2007,8 @@ mod piece_tests {
                 assert_eq!(
                     valid_moves,
                     vec![
-                        single_move_path((2, 0)),
-                        PiecePath::single(PotentialMove::new(move_, None))
+                        single_move_path((2, 0),pawn.colour),
+                        PiecePath::single(PotentialMove::new(move_, None), pawn.colour)
                     ]
                 );
             }
@@ -2045,9 +2045,9 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((3, 1)),
-                    PiecePath::single(blocked_move((3, 2), PieceColour::Black)),
-                    PiecePath::single(blocked_move((3, 0), PieceColour::Black)),
+                    single_move_path((3, 1), pawn.colour),
+                    PiecePath::single(blocked_move((3, 2), PieceColour::Black), pawn.colour),
+                    PiecePath::single(blocked_move((3, 0), PieceColour::Black), pawn.colour),
                 ]
             );
         }
@@ -2100,7 +2100,7 @@ mod piece_tests {
             ];
 
             let valid_moves = pawn.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![single_move_path((2, 0))]);
+            assert_eq!(valid_moves, vec![single_move_path((2, 0), pawn.colour)]);
 
             let pieces = [
                 Piece {
@@ -2138,7 +2138,7 @@ mod piece_tests {
                 let pawn = pawn(5, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                assert_eq!(valid_moves, vec![single_move_path((4, 0))]);
+                assert_eq!(valid_moves, vec![single_move_path((4, 0), pawn.colour)]);
             }
 
             #[test]
@@ -2149,8 +2149,8 @@ mod piece_tests {
                 assert_eq!(
                     valid_moves,
                     vec![
-                        single_move_path((5, 0)),
-                        PiecePath::single(PotentialMove::new(Move::pawn_double_step(4, 0), None))
+                        single_move_path((5, 0), pawn.colour),
+                        PiecePath::single(PotentialMove::new(Move::pawn_double_step(4, 0), None), pawn.colour)
                     ]
                 );
             }
@@ -2187,9 +2187,9 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((4, 1)),
-                    PiecePath::single(blocked_move((4, 2), PieceColour::White)),
-                    PiecePath::single(blocked_move((4, 0), PieceColour::White)),
+                    single_move_path((4, 1), pawn.colour),
+                    PiecePath::single(blocked_move((4, 2), PieceColour::White), pawn.colour),
+                    PiecePath::single(blocked_move((4, 0), PieceColour::White), pawn.colour),
                 ]
             );
         }
@@ -2242,7 +2242,7 @@ mod piece_tests {
             ];
 
             let valid_moves = pawn.valid_moves(&pieces.into());
-            assert_eq!(valid_moves, vec![single_move_path((5, 0))]);
+            assert_eq!(valid_moves, vec![single_move_path((5, 0), pawn.colour)]);
 
             let pieces = [
                 Piece {
@@ -2278,14 +2278,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((0, 0)),
-                    single_move_path((0, 1)),
-                    single_move_path((0, 2)),
-                    single_move_path((1, 0)),
-                    single_move_path((1, 2)),
-                    single_move_path((2, 0)),
-                    single_move_path((2, 1)),
-                    single_move_path((2, 2))
+                    single_move_path((0, 0), king.colour),
+                    single_move_path((0, 1), king.colour),
+                    single_move_path((0, 2), king.colour),
+                    single_move_path((1, 0), king.colour),
+                    single_move_path((1, 2), king.colour),
+                    single_move_path((2, 0), king.colour),
+                    single_move_path((2, 1), king.colour),
+                    single_move_path((2, 2), king.colour)
                 ]
             );
         }
@@ -2297,9 +2297,9 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((0, 1)),
-                    single_move_path((1, 0)),
-                    single_move_path((1, 1))
+                    single_move_path((0, 1), king.colour),
+                    single_move_path((1, 0), king.colour),
+                    single_move_path((1, 1), king.colour)
                 ]
             );
         }
@@ -2319,16 +2319,51 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((0, 0)),
-                    single_move_path((0, 1)),
-                    single_move_path((0, 2)),
-                    single_move_path((1, 0)),
-                    PiecePath::single(blocked_move((1, 2), PieceColour::Black)),
-                    single_move_path((2, 0)),
-                    PiecePath::single(blocked_move((2, 1), PieceColour::Black)),
-                    PiecePath::single(blocked_move((2, 2), PieceColour::Black)),
+                    single_move_path((0, 0), king.colour),
+                    single_move_path((0, 1), king.colour),
+                    single_move_path((0, 2), king.colour),
+                    single_move_path((1, 0), king.colour),
+                    PiecePath::single(blocked_move((1, 2), PieceColour::Black), king.colour),
+                    single_move_path((2, 0), king.colour),
+                    PiecePath::single(blocked_move((2, 1), PieceColour::Black), king.colour),
+                    PiecePath::single(blocked_move((2, 2), PieceColour::Black), king.colour),
                 ]
             );
+
+            assert!(valid_moves[4].legal_path().collect::<Vec<_>>().is_empty());
+            assert!(valid_moves[6].legal_path().collect::<Vec<_>>().is_empty());
+            assert!(valid_moves[7].legal_path().collect::<Vec<_>>().is_empty());
+        }
+
+        #[test]
+        fn should_be_able_to_move_into_a_piece_of_the_opposite_colour() {
+            let pawn = |x: u8, y: u8| Piece {
+                colour: PieceColour::White,
+                kind: PieceKind::Pawn,
+                x,
+                y,
+            };
+            let king = king(1, 1);
+            let pieces = [king, pawn(2, 1), pawn(2, 2), pawn(1, 2)];
+
+            let valid_moves = king.valid_moves(&pieces.into());
+            assert_eq!(
+                valid_moves,
+                vec![
+                    single_move_path((0, 0), king.colour),
+                    single_move_path((0, 1), king.colour),
+                    single_move_path((0, 2), king.colour),
+                    single_move_path((1, 0), king.colour),
+                    PiecePath::single(blocked_move((1, 2), PieceColour::White), king.colour),
+                    single_move_path((2, 0), king.colour),
+                    PiecePath::single(blocked_move((2, 1), PieceColour::White), king.colour),
+                    PiecePath::single(blocked_move((2, 2), PieceColour::White), king.colour),
+                ]
+            );
+
+            assert_eq!(valid_moves[4].legal_path().collect::<Vec<_>>(), vec![Move::standard((1, 2))]);
+            assert_eq!(valid_moves[6].legal_path().collect::<Vec<_>>(), vec![Move::standard((2, 1))]);
+            assert_eq!(valid_moves[7].legal_path().collect::<Vec<_>>(), vec![Move::standard((2, 2))]);
         }
     }
 
@@ -2358,9 +2393,9 @@ mod piece_tests {
                         unblocked_move((5, 1)),
                         unblocked_move((6, 1)),
                         unblocked_move((7, 1)),
-                    ]),
-                    single_move_path((0, 1)),
-                    single_move_path((1, 0)),
+                    ], queen.colour),
+                    single_move_path((0, 1), queen.colour),
+                    single_move_path((1, 0), queen.colour),
                     PiecePath::new(vec![
                         unblocked_move((1, 2)),
                         unblocked_move((1, 3)),
@@ -2368,8 +2403,8 @@ mod piece_tests {
                         unblocked_move((1, 5)),
                         unblocked_move((1, 6)),
                         unblocked_move((1, 7))
-                    ]),
-                    single_move_path((2, 0)),
+                    ], queen.colour),
+                    single_move_path((2, 0), queen.colour),
                     PiecePath::new(vec![
                         unblocked_move((2, 2)),
                         unblocked_move((3, 3)),
@@ -2377,9 +2412,9 @@ mod piece_tests {
                         unblocked_move((5, 5)),
                         unblocked_move((6, 6)),
                         unblocked_move((7, 7)),
-                    ]),
-                    single_move_path((0, 0)),
-                    single_move_path((0, 2)),
+                    ], queen.colour),
+                    single_move_path((0, 0), queen.colour),
+                    single_move_path((0, 2), queen.colour),
                 ]
             );
         }
@@ -2406,9 +2441,9 @@ mod piece_tests {
                         blocked_move((5, 1), PieceColour::Black),
                         unblocked_move((6, 1)),
                         unblocked_move((7, 1)),
-                    ]),
-                    single_move_path((0, 1)),
-                    single_move_path((1, 0)),
+                    ], queen.colour),
+                    single_move_path((0, 1), queen.colour),
+                    single_move_path((1, 0), queen.colour),
                     PiecePath::new(vec![
                         blocked_move((1, 2), PieceColour::Black),
                         unblocked_move((1, 3)),
@@ -2416,8 +2451,8 @@ mod piece_tests {
                         unblocked_move((1, 5)),
                         unblocked_move((1, 6)),
                         unblocked_move((1, 7))
-                    ]),
-                    single_move_path((2, 0)),
+                    ], queen.colour),
+                    single_move_path((2, 0), queen.colour),
                     PiecePath::new(vec![
                         unblocked_move((2, 2)),
                         blocked_move((3, 3), PieceColour::Black),
@@ -2425,9 +2460,9 @@ mod piece_tests {
                         unblocked_move((5, 5)),
                         unblocked_move((6, 6)),
                         unblocked_move((7, 7)),
-                    ]),
-                    single_move_path((0, 0)),
-                    single_move_path((0, 2)),
+                    ], queen.colour),
+                    single_move_path((0, 0), queen.colour),
+                    single_move_path((0, 2), queen.colour),
                 ]
             );
         }
@@ -2454,9 +2489,9 @@ mod piece_tests {
                         blocked_move((5, 1), PieceColour::White),
                         unblocked_move((6, 1)),
                         unblocked_move((7, 1)),
-                    ]),
-                    single_move_path((0, 1)),
-                    single_move_path((1, 0)),
+                    ], queen.colour),
+                    single_move_path((0, 1), queen.colour),
+                    single_move_path((1, 0), queen.colour),
                     PiecePath::new(vec![
                         blocked_move((1, 2), PieceColour::White),
                         unblocked_move((1, 3)),
@@ -2464,8 +2499,8 @@ mod piece_tests {
                         unblocked_move((1, 5)),
                         unblocked_move((1, 6)),
                         unblocked_move((1, 7))
-                    ]),
-                    single_move_path((2, 0)),
+                    ], queen.colour),
+                    single_move_path((2, 0), queen.colour),
                     PiecePath::new(vec![
                         unblocked_move((2, 2)),
                         blocked_move((3, 3), PieceColour::White),
@@ -2473,9 +2508,9 @@ mod piece_tests {
                         unblocked_move((5, 5)),
                         unblocked_move((6, 6)),
                         unblocked_move((7, 7)),
-                    ]),
-                    single_move_path((0, 0)),
-                    single_move_path((0, 2)),
+                    ], queen.colour),
+                    single_move_path((0, 0), queen.colour),
+                    single_move_path((0, 2), queen.colour),
                 ]
             );
         }
@@ -2512,29 +2547,29 @@ mod piece_tests {
                         unblocked_move((2, 3)),
                         unblocked_move((1, 3)),
                         unblocked_move((0, 3))
-                    ]),
+                    ], queen.colour),
                     PiecePath::new(vec![
                         blocked_move((7, 2), PieceColour::Black),
                         unblocked_move((7, 1)),
                         unblocked_move((7, 0))
-                    ]),
+                    ], queen.colour),
                     PiecePath::new(vec![
                         blocked_move((7, 4), PieceColour::Black),
                         unblocked_move((7, 5)),
                         unblocked_move((7, 6)),
                         unblocked_move((7, 7))
-                    ]),
+                    ], queen.colour),
                     PiecePath::new(vec![
                         blocked_move((6, 2), PieceColour::Black),
                         unblocked_move((5, 1)),
                         unblocked_move((4, 0))
-                    ]),
+                    ], queen.colour),
                     PiecePath::new(vec![
                         unblocked_move((6, 4)),
                         unblocked_move((5, 5)),
                         unblocked_move((4, 6)),
                         unblocked_move((3, 7))
-                    ]),
+                    ], queen.colour),
                 ]
             );
         }
@@ -2559,7 +2594,7 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((2, 0)),
+                    single_move_path((2, 0), bishop.colour),
                     PiecePath::new(vec![
                         unblocked_move((2, 2)),
                         unblocked_move((3, 3)),
@@ -2567,9 +2602,9 @@ mod piece_tests {
                         unblocked_move((5, 5)),
                         unblocked_move((6, 6)),
                         unblocked_move((7, 7)),
-                    ]),
-                    single_move_path((0, 0)),
-                    single_move_path((0, 2)),
+                    ], bishop.colour),
+                    single_move_path((0, 0), bishop.colour),
+                    single_move_path((0, 2), bishop.colour),
                 ]
             );
         }
@@ -2589,7 +2624,7 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((2, 0)),
+                    single_move_path((2, 0), bishop.colour),
                     PiecePath::new(vec![
                         unblocked_move((2, 2)),
                         unblocked_move((3, 3)),
@@ -2597,9 +2632,9 @@ mod piece_tests {
                         blocked_move((5, 5), PieceColour::Black),
                         unblocked_move((6, 6)),
                         unblocked_move((7, 7)),
-                    ]),
-                    single_move_path((0, 0)),
-                    single_move_path((0, 2)),
+                    ], bishop.colour),
+                    single_move_path((0, 0), bishop.colour),
+                    single_move_path((0, 2), bishop.colour),
                 ]
             );
         }
@@ -2619,7 +2654,7 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((2, 0)),
+                    single_move_path((2, 0), bishop.colour),
                     PiecePath::new(vec![
                         unblocked_move((2, 2)),
                         unblocked_move((3, 3)),
@@ -2627,9 +2662,9 @@ mod piece_tests {
                         blocked_move((5, 5), PieceColour::White),
                         unblocked_move((6, 6)),
                         unblocked_move((7, 7)),
-                    ]),
-                    single_move_path((0, 0)),
-                    single_move_path((0, 2)),
+                    ], bishop.colour),
+                    single_move_path((0, 0), bishop.colour),
+                    single_move_path((0, 2), bishop.colour),
                 ]
             );
         }
@@ -2654,14 +2689,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((0, 1)),
-                    single_move_path((0, 3)),
-                    single_move_path((4, 1)),
-                    single_move_path((4, 3)),
-                    single_move_path((1, 0)),
-                    single_move_path((1, 4)),
-                    single_move_path((3, 0)),
-                    single_move_path((3, 4)),
+                    single_move_path((0, 1), knight.colour),
+                    single_move_path((0, 3), knight.colour),
+                    single_move_path((4, 1), knight.colour),
+                    single_move_path((4, 3), knight.colour),
+                    single_move_path((1, 0), knight.colour),
+                    single_move_path((1, 4), knight.colour),
+                    single_move_path((3, 0), knight.colour),
+                    single_move_path((3, 4), knight.colour),
                 ]
             );
         }
@@ -2672,7 +2707,7 @@ mod piece_tests {
             let valid_moves = knight.valid_moves(&[knight].into());
             assert_eq!(
                 valid_moves,
-                vec![single_move_path((2, 1)), single_move_path((1, 2)),]
+                vec![single_move_path((2, 1), knight.colour), single_move_path((1, 2), knight.colour),]
             );
         }
 
@@ -2701,14 +2736,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((0, 1)),
-                    single_move_path((0, 3)),
-                    single_move_path((4, 1)),
-                    single_move_path((4, 3)),
-                    single_move_path((1, 0)),
-                    single_move_path((1, 4)),
-                    single_move_path((3, 0)),
-                    single_move_path((3, 4)),
+                    single_move_path((0, 1), knight.colour),
+                    single_move_path((0, 3), knight.colour),
+                    single_move_path((4, 1), knight.colour),
+                    single_move_path((4, 3), knight.colour),
+                    single_move_path((1, 0), knight.colour),
+                    single_move_path((1, 4), knight.colour),
+                    single_move_path((3, 0), knight.colour),
+                    single_move_path((3, 4), knight.colour),
                 ]
             );
         }
@@ -2728,14 +2763,14 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    PiecePath::single(blocked_move((0, 1), PieceColour::Black)),
-                    single_move_path((0, 3)),
-                    PiecePath::single(blocked_move((4, 1), PieceColour::Black)),
-                    single_move_path((4, 3)),
-                    single_move_path((1, 0)),
-                    single_move_path((1, 4)),
-                    PiecePath::single(blocked_move((3, 0), PieceColour::Black)),
-                    single_move_path((3, 4)),
+                    PiecePath::single(blocked_move((0, 1), PieceColour::Black), knight.colour),
+                    single_move_path((0, 3), knight.colour),
+                    PiecePath::single(blocked_move((4, 1), PieceColour::Black), knight.colour),
+                    single_move_path((4, 3), knight.colour),
+                    single_move_path((1, 0), knight.colour),
+                    single_move_path((1, 4), knight.colour),
+                    PiecePath::single(blocked_move((3, 0), PieceColour::Black), knight.colour),
+                    single_move_path((3, 4), knight.colour),
                 ]
             );
         }
@@ -2760,7 +2795,7 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((0, 1)),
+                    single_move_path((0, 1), rook.colour),
                     PiecePath::new(vec![
                         unblocked_move((2, 1)),
                         unblocked_move((3, 1)),
@@ -2768,7 +2803,7 @@ mod piece_tests {
                         unblocked_move((5, 1)),
                         unblocked_move((6, 1)),
                         unblocked_move((7, 1)),
-                    ]),
+                    ], rook.colour),
                     PiecePath::new(vec![
                         unblocked_move((1, 2)),
                         unblocked_move((1, 3)),
@@ -2776,8 +2811,8 @@ mod piece_tests {
                         unblocked_move((1, 5)),
                         unblocked_move((1, 6)),
                         unblocked_move((1, 7)),
-                    ]),
-                    single_move_path((1, 0)),
+                    ], rook.colour),
+                    single_move_path((1, 0), rook.colour),
                 ]
             );
         }
@@ -2802,23 +2837,23 @@ mod piece_tests {
                         unblocked_move((2, 4)),
                         unblocked_move((1, 4)),
                         unblocked_move((0, 4)),
-                    ]),
+                    ], rook.colour),
                     PiecePath::new(vec![
                         unblocked_move((5, 4)),
                         unblocked_move((6, 4)),
                         unblocked_move((7, 4)),
-                    ]),
+                    ], rook.colour),
                     PiecePath::new(vec![
                         unblocked_move((4, 5)),
                         unblocked_move((4, 6)),
                         unblocked_move((4, 7)),
-                    ]),
+                    ], rook.colour),
                     PiecePath::new(vec![
                         unblocked_move((4, 3)),
                         blocked_move((4, 2), PieceColour::Black),
                         unblocked_move((4, 1)),
                         unblocked_move((4, 0)),
-                    ]),
+                    ], rook.colour),
                 ]
             );
         }
@@ -2838,7 +2873,7 @@ mod piece_tests {
             assert_eq!(
                 valid_moves,
                 vec![
-                    single_move_path((0, 1)),
+                    single_move_path((0, 1), rook.colour),
                     PiecePath::new(vec![
                         unblocked_move((2, 1)),
                         unblocked_move((3, 1)),
@@ -2846,7 +2881,7 @@ mod piece_tests {
                         blocked_move((5, 1), PieceColour::White),
                         unblocked_move((6, 1)),
                         unblocked_move((7, 1)),
-                    ]),
+                    ], rook.colour),
                     PiecePath::new(vec![
                         unblocked_move((1, 2)),
                         blocked_move((1, 3), PieceColour::White),
@@ -2854,8 +2889,8 @@ mod piece_tests {
                         unblocked_move((1, 5)),
                         unblocked_move((1, 6)),
                         unblocked_move((1, 7)),
-                    ]),
-                    single_move_path((1, 0)),
+                    ], rook.colour),
+                    single_move_path((1, 0), rook.colour),
                 ]
             );
         }

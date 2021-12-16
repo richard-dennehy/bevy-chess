@@ -230,7 +230,7 @@ impl<'game> MoveCalculator<'game> {
                             (*entity, PiecePath::single(PotentialMove {
                                 move_: ep_move,
                                 blocked_by: None,
-                            }))
+                            }, piece.colour))
                         })
                 })
             };
@@ -245,7 +245,7 @@ impl<'game> MoveCalculator<'game> {
         potential_moves
             .get(self.king_entity)
             .into_iter()
-            .flat_map(|path| path.legal_path())
+            .flat_map(PiecePath::legal_path)
             .filter(|king_move| {
                 let (x, y) = (king_move.x, king_move.y);
 

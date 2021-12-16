@@ -87,7 +87,10 @@ impl core::fmt::Display for PieceColour {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct PiecePath(Vec<PotentialMove>);
+pub struct PiecePath {
+    potential_moves: Vec<PotentialMove>,
+    colour: PieceColour,
+}
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Obstruction {
@@ -97,36 +100,54 @@ pub struct Obstruction {
 }
 
 impl PiecePath {
-    pub fn new(potential_moves: Vec<PotentialMove>) -> Self {
-        Self(potential_moves)
+    pub fn new(potential_moves: Vec<PotentialMove>, colour: PieceColour) -> Self {
+        Self {
+            potential_moves,
+            colour,
+        }
     }
 
-    pub fn single(potential_move: PotentialMove) -> Self {
-        Self(vec![potential_move])
+    pub fn single(potential_move: PotentialMove, colour: PieceColour) -> Self {
+        Self {
+            potential_moves: vec![potential_move],
+            colour,
+        }
     }
 
-    pub fn from_iterator(iter: impl Iterator<Item = PotentialMove>) -> Option<Self> {
+    pub fn from_iterator(
+        iter: impl Iterator<Item = PotentialMove>,
+        colour: PieceColour,
+    ) -> Option<Self> {
         let moves = iter.collect::<Vec<_>>();
         if moves.is_empty() {
             None
         } else {
-            Some(Self(moves))
+            Some(Self::new(moves, colour))
         }
     }
 
+    // TODO write more tests for this
     pub fn legal_path(&self) -> impl Iterator<Item = Move> + '_ {
-        // FIXME this needs to go one further if the piece colour is different to the blocker colour
-        self.0.iter().map_while(|potential_move| {
-            if potential_move.blocked_by.is_none() {
-                Some(potential_move.move_)
-            } else {
-                None
-            }
-        })
+        // this needs to return an Iterator (even though it makes this code a bit awkward)
+        // otherwise it causes lifetime issues for the call sites in moves_calculator
+        self.potential_moves
+            .iter()
+            .scan(false, |blocked, potential_move| {
+                if *blocked {
+                    return None;
+                };
+
+                if let Some(colour) = potential_move.blocked_by {
+                    *blocked = true;
+                    (colour == self.colour.opposite()).then(|| potential_move.move_)
+                } else {
+                    Some(potential_move.move_)
+                }
+            })
     }
 
     pub fn obstructions(&self) -> Vec<Obstruction> {
-        self.0
+        self.potential_moves
             .iter()
             .filter_map(|potential_move| {
                 potential_move.blocked_by.map(|blockage| Obstruction {
@@ -139,20 +160,22 @@ impl PiecePath {
     }
 
     pub fn contains(&self, x: u8, y: u8) -> bool {
-        self.0
+        self.potential_moves
             .iter()
             .any(|potential| potential.move_.x == x && potential.move_.y == y)
     }
 
     pub fn truncate_to(&self, x: u8, y: u8) -> Option<Self> {
         if self.contains(x, y) {
-            Some(PiecePath(
-                self.0
+            Some(PiecePath {
+                potential_moves: self
+                    .potential_moves
                     .iter()
                     .take_while(|p_move| p_move.move_.x != x && p_move.move_.y != y)
                     .copied()
                     .collect(),
-            ))
+                colour: self.colour,
+            })
         } else {
             None
         }
@@ -167,7 +190,10 @@ impl Piece {
         };
 
         let up = || {
-            PiecePath::from_iterator(((self.x + 1)..8).map(|new_x| potential_move((new_x, self.y))))
+            PiecePath::from_iterator(
+                ((self.x + 1)..8).map(|new_x| potential_move((new_x, self.y))),
+                self.colour,
+            )
         };
 
         let down = || {
@@ -175,6 +201,7 @@ impl Piece {
                 (0..self.x)
                     .rev()
                     .map(|new_x| potential_move((new_x, self.y))),
+                self.colour,
             )
         };
 
@@ -183,11 +210,15 @@ impl Piece {
                 (0..self.y)
                     .rev()
                     .map(|new_y| potential_move((self.x, new_y))),
+                self.colour,
             )
         };
 
         let right = || {
-            PiecePath::from_iterator(((self.y + 1)..8).map(|new_y| potential_move((self.x, new_y))))
+            PiecePath::from_iterator(
+                ((self.y + 1)..8).map(|new_y| potential_move((self.x, new_y))),
+                self.colour,
+            )
         };
 
         let up_left = || {
@@ -198,6 +229,7 @@ impl Piece {
                         (diff <= self.y).then(|| (new_x, self.y - diff))
                     })
                     .map(potential_move),
+                self.colour,
             )
         };
 
@@ -209,6 +241,7 @@ impl Piece {
                         (new_y < 8).then(|| (new_x, new_y))
                     })
                     .map(potential_move),
+                self.colour,
             )
         };
 
@@ -221,6 +254,7 @@ impl Piece {
                         (diff <= self.y).then(|| (new_x, self.y - diff))
                     })
                     .map(potential_move),
+                self.colour,
             )
         };
 
@@ -233,6 +267,7 @@ impl Piece {
                         (new_y < 8).then(|| (new_x, new_y))
                     })
                     .map(potential_move),
+                self.colour,
             )
         };
 
@@ -256,7 +291,7 @@ impl Piece {
             .into_iter()
             .filter_map(is_on_board)
             .map(potential_move)
-            .map(PiecePath::single)
+            .map(|move_| PiecePath::single(move_, self.colour))
             .collect(),
             PieceKind::Queen => [
                 up(),
@@ -271,15 +306,10 @@ impl Piece {
             .into_iter()
             .flatten()
             .collect(),
-            PieceKind::Bishop => [
-                up_left(),
-                up_right(),
-                down_left(),
-                down_right(),
-            ]
-            .into_iter()
-            .flatten()
-            .collect(),
+            PieceKind::Bishop => [up_left(), up_right(), down_left(), down_right()]
+                .into_iter()
+                .flatten()
+                .collect(),
             PieceKind::Knight => [
                 (x - 2, y - 1),
                 (x - 2, y + 1),
@@ -293,7 +323,7 @@ impl Piece {
             .into_iter()
             .filter_map(is_on_board)
             .map(potential_move)
-            .map(PiecePath::single)
+            .map(|move_| PiecePath::single(move_, self.colour))
             .collect(),
             PieceKind::Rook => [down(), up(), right(), left()]
                 .into_iter()
@@ -318,7 +348,7 @@ impl Piece {
 
                     let forward_one = potential_move((move_one, y));
                     if forward_one.blocked_by.is_none() {
-                        moves.push(PiecePath::single(forward_one));
+                        moves.push(PiecePath::single(forward_one, self.colour));
                     }
 
                     let forward_two = PotentialMove {
@@ -329,16 +359,22 @@ impl Piece {
                         && forward_one.blocked_by.is_none()
                         && forward_two.blocked_by.is_none()
                     {
-                        moves.push(PiecePath::single(forward_two))
+                        moves.push(PiecePath::single(forward_two, self.colour))
                     };
 
                     // PiecePath::legal_path will handle pieces of the same colour
                     if y != 7 && board.get(move_one, y + 1).is_some() {
-                        moves.push(PiecePath::single(potential_move((move_one, y + 1))))
+                        moves.push(PiecePath::single(
+                            potential_move((move_one, y + 1)),
+                            self.colour,
+                        ))
                     };
 
                     if y != 0 && board.get(move_one, y - 1).is_some() {
-                        moves.push(PiecePath::single(potential_move((move_one, y - 1))))
+                        moves.push(PiecePath::single(
+                            potential_move((move_one, y - 1)),
+                            self.colour,
+                        ))
                     };
 
                     moves
