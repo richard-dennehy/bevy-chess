@@ -1,6 +1,7 @@
 #![feature(option_result_contains)]
 #![feature(int_abs_diff)]
 #![feature(let_else)]
+#![feature(format_args_capture)]
 
 #[cfg(test)]
 mod tests;

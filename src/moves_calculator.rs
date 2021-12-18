@@ -129,6 +129,7 @@ type Moves = Vec<Move>;
 type PieceMoves = (Entity, Moves);
 type EnPassantMove = (Entity, PiecePath);
 
+#[derive(Debug)]
 struct AllPotentialMoves(HashMap<Entity, Vec<PiecePath>>);
 
 impl AllPotentialMoves {
@@ -152,7 +153,9 @@ impl AllPotentialMoves {
     }
 
     fn path_to(&self, entity: Entity, x: u8, y: u8) -> Option<PiecePath> {
-        self.get(entity).iter().find_map(|path| path.truncate_to(x, y))
+        self.get(entity)
+            .iter()
+            .find_map(|path| path.truncate_to(x, y))
     }
 }
 
@@ -169,13 +172,13 @@ impl<'game> MoveCalculator<'game> {
             .for_each(|(entity, piece)| {
                 let mut valid_moves = piece.valid_moves(&self.board_state);
 
-                if let Some((left, ep_move)) = en_passant_left.take() {
-                    if entity == left {
-                        valid_moves.push(ep_move);
+                if let Some((left, _)) = &en_passant_left {
+                    if entity == *left {
+                        valid_moves.push(en_passant_left.take().unwrap().1);
                     }
-                } else if let Some((right, ep_move)) = en_passant_right.take() {
-                    if entity == right {
-                        valid_moves.push(ep_move);
+                } else if let Some((right, _)) = &en_passant_right {
+                    if entity == *right {
+                        valid_moves.push(en_passant_right.take().unwrap().1);
                     }
                 };
 
@@ -227,10 +230,16 @@ impl<'game> MoveCalculator<'game> {
                             );
                             // note: this move can't be blocked, because if there was a piece in the way,
                             // then the enemy pawn wouldn't have been able to double step over it
-                            (*entity, PiecePath::single(PotentialMove {
-                                move_: ep_move,
-                                blocked_by: None,
-                            }, piece.colour))
+                            (
+                                *entity,
+                                PiecePath::single(
+                                    PotentialMove {
+                                        move_: ep_move,
+                                        blocked_by: None,
+                                    },
+                                    piece.colour,
+                                ),
+                            )
                         })
                 })
             };
@@ -249,9 +258,9 @@ impl<'game> MoveCalculator<'game> {
             .filter(|king_move| {
                 let (x, y) = (king_move.x, king_move.y);
 
-                !self.opposite_pieces.iter().any(|(entity, _)| {
+                let attacked = self.opposite_pieces.iter().any(|(entity, _)| {
                     if self.board_state.get(x, y).is_some() {
-                        potential_moves.get(*entity).iter().all(|path| {
+                        potential_moves.get(*entity).iter().any(|path| {
                             path.obstructions()
                                 .first()
                                 .map(|obstruction| obstruction.x == x && obstruction.y == y)
@@ -260,7 +269,9 @@ impl<'game> MoveCalculator<'game> {
                     } else {
                         potential_moves.can_reach(*entity, x, y)
                     }
-                })
+                });
+
+                !attacked
             })
             .collect()
     }
@@ -316,14 +327,14 @@ impl<'game> MoveCalculator<'game> {
         self.opposite_pieces
             .iter()
             .filter_map(|(entity, piece)| {
-                let Some(path) = potential_moves.path_to(*entity, self.king.x, self.king.y) else { return None };
+                let path = potential_moves.path_to(*entity, self.king.x, self.king.y)?;
 
                 let obstructions = path.obstructions();
                 // if the path is blocked by 2+ pieces, or by a piece of the same colour, it can't put the king in check during this turn
                 let blocked = obstructions.len() >= 2
                     || obstructions
-                    .into_iter()
-                    .any(|obs| obs.colour == self.turn.opposite());
+                        .into_iter()
+                        .any(|obs| obs.colour == self.turn.opposite());
 
                 (!blocked).then(|| (*piece, path))
             })
@@ -344,9 +355,8 @@ impl<'game> MoveCalculator<'game> {
                 let counter_moves = safe_piece_moves
                     .iter()
                     .filter(|piece_move| {
-                        pieces_attacking_king
-                            .iter()
-                            .all(|(opposite_entity, opposite_piece, path_to_king)| {
+                        pieces_attacking_king.iter().all(
+                            |(opposite_entity, opposite_piece, path_to_king)| {
                                 let can_take_en_passant =
                                     if let MoveKind::EnPassant { target_id } = piece_move.kind {
                                         target_id == *opposite_entity
@@ -357,10 +367,12 @@ impl<'game> MoveCalculator<'game> {
                                 let can_take_directly = opposite_piece.x == piece_move.x
                                     && opposite_piece.y == piece_move.y;
 
-                                let blocks_piece = path_to_king.contains(piece_move.x, piece_move.y);
+                                let blocks_piece =
+                                    path_to_king.contains(piece_move.x, piece_move.y);
 
                                 can_take_en_passant || can_take_directly || blocks_piece
-                            })
+                            },
+                        )
                     })
                     .copied()
                     .collect::<Vec<_>>();

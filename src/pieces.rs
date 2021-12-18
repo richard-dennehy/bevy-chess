@@ -171,7 +171,15 @@ impl PiecePath {
                 potential_moves: self
                     .potential_moves
                     .iter()
-                    .take_while(|p_move| p_move.move_.x != x && p_move.move_.y != y)
+                    // take_while_and_then_one_more_please
+                    .scan(false, |done, p_move| {
+                        if *done {
+                            return None;
+                        };
+
+                        *done = p_move.move_.x == x && p_move.move_.y == y;
+                        Some(p_move)
+                    })
                     .copied()
                     .collect(),
                 colour: self.colour,
