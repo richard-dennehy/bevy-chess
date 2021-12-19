@@ -771,6 +771,37 @@ mod board_tests {
                 &GameState::Checkmate(PieceColour::Black)
             );
         }
+
+        #[test]
+        fn should_not_allow_the_king_to_move_onto_a_square_attacked_by_a_pawn() {
+            let (mut world, mut update_stage) = setup();
+
+            let king_id = world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Pawn,
+                colour: PieceColour::White,
+                x: 5,
+                y: 4,
+            });
+
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(king_id),
+                &vec![
+                    Move::standard((6, 4)),
+                    Move::standard((7, 3)),
+                    Move::standard((7, 5))
+                ]
+            );
+        }
     }
 
     mod special_moves {
@@ -2046,8 +2077,8 @@ mod piece_tests {
                 valid_moves,
                 vec![
                     single_move_path((3, 1), pawn.colour),
-                    PiecePath::single(blocked_move((3, 2), PieceColour::Black), pawn.colour),
-                    PiecePath::single(blocked_move((3, 0), PieceColour::Black), pawn.colour),
+                    single_move_path((3, 0), pawn.colour),
+                    single_move_path((3, 2), pawn.colour),
                 ]
             );
         }
@@ -2188,8 +2219,8 @@ mod piece_tests {
                 valid_moves,
                 vec![
                     single_move_path((4, 1), pawn.colour),
-                    PiecePath::single(blocked_move((4, 2), PieceColour::White), pawn.colour),
-                    PiecePath::single(blocked_move((4, 0), PieceColour::White), pawn.colour),
+                    single_move_path((4, 0), pawn.colour),
+                    single_move_path((4, 2), pawn.colour),
                 ]
             );
         }

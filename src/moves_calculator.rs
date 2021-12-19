@@ -258,7 +258,8 @@ impl<'game> MoveCalculator<'game> {
             .filter(|king_move| {
                 let (x, y) = (king_move.x, king_move.y);
 
-                let attacked = self.opposite_pieces.iter().any(|(entity, _)| {
+                let attacked = self.opposite_pieces.iter().any(|(entity, piece)| {
+                    // check that taking the piece on the square doesn't put the king in check
                     if self.board_state.get(x, y).is_some() {
                         potential_moves.get(*entity).iter().any(|path| {
                             path.obstructions()
@@ -266,6 +267,16 @@ impl<'game> MoveCalculator<'game> {
                                 .map(|obstruction| obstruction.x == x && obstruction.y == y)
                                 .unwrap_or(false)
                         })
+                    } else if piece.kind == PieceKind::Pawn {
+                        // pawn behaviour is very different to other pieces, and it's easier to handle
+                        // the interactions here than try to get PotentialMove/PiecePath to handle it properly
+                        let will_attack_king = |move_: &Option<PotentialMove>| {
+                            let Some(potential_move) = move_ else { return false };
+                            potential_move.move_.x == king_move.x && potential_move.move_.y == king_move.y
+                        };
+                        let pawn_moves = piece.pawn_moves(&self.board_state, true);
+
+                        will_attack_king(&pawn_moves.attack_left) || will_attack_king(&pawn_moves.attack_right)
                     } else {
                         potential_moves.can_reach(*entity, x, y)
                     }

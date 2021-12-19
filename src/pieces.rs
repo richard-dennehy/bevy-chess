@@ -190,6 +190,14 @@ impl PiecePath {
     }
 }
 
+#[derive(Debug)]
+pub struct PawnMoves {
+    pub attack_left: Option<PotentialMove>,
+    pub attack_right: Option<PotentialMove>,
+    pub advance_one: Option<PotentialMove>,
+    pub advance_two: Option<PotentialMove>,
+}
+
 impl Piece {
     pub fn valid_moves(&self, board: &BoardState) -> Vec<PiecePath> {
         let potential_move = |(x, y): (u8, u8)| PotentialMove {
@@ -338,218 +346,20 @@ impl Piece {
                 .flatten()
                 .collect(),
             PieceKind::Pawn => {
-                // todo need to somehow handle the king moving diagonally to a pawn (such that the pawn can immediately take it next turn)
-                let direction = self.colour.pawn_direction();
-                let starting_row = self.colour.starting_front_row() as i8;
-                // TODO once pawn promotion is implemented, a pawn should never start a turn on the final row
-                let final_row = starting_row + (direction * 6);
+                let pawn_moves = self.pawn_moves(board, false);
 
-                if x == final_row {
-                    vec![]
-                } else {
-                    // note: pawns don't really fit into the "PiecePath" model
-                    let mut moves = Vec::with_capacity(4);
-
-                    let move_one = (x + direction) as u8;
-                    let move_two = (x + (2 * direction)) as u8;
-                    let y = y as u8;
-
-                    let forward_one = potential_move((move_one, y));
-                    if forward_one.blocked_by.is_none() {
-                        moves.push(PiecePath::single(forward_one, self.colour));
-                    }
-
-                    let forward_two = PotentialMove {
-                        move_: Move::pawn_double_step(move_two, y),
-                        blocked_by: *board.get(move_two, y),
-                    };
-                    if x == starting_row
-                        && forward_one.blocked_by.is_none()
-                        && forward_two.blocked_by.is_none()
-                    {
-                        moves.push(PiecePath::single(forward_two, self.colour))
-                    };
-
-                    // PiecePath::legal_path will handle pieces of the same colour
-                    if y != 7 && board.get(move_one, y + 1).is_some() {
-                        moves.push(PiecePath::single(
-                            potential_move((move_one, y + 1)),
-                            self.colour,
-                        ))
-                    };
-
-                    if y != 0 && board.get(move_one, y - 1).is_some() {
-                        moves.push(PiecePath::single(
-                            potential_move((move_one, y - 1)),
-                            self.colour,
-                        ))
-                    };
-
-                    moves
-                }
+                [
+                    pawn_moves.advance_one,
+                    pawn_moves.advance_two,
+                    pawn_moves.attack_left,
+                    pawn_moves.attack_right,
+                ]
+                .into_iter()
+                .flatten()
+                .map(|move_| PiecePath::single(move_, self.colour))
+                .collect()
             }
         }
-    }
-
-    pub fn old_valid_moves(&self, board: &BoardState) -> Vec<Move> {
-        let (x, y) = (self.x as i8, self.y as i8);
-
-        let is_on_board = |(x, y): (i8, i8)| {
-            ((0..8).contains(&x) && (0..8).contains(&y)).then(|| (x as u8, y as u8))
-        };
-
-        let path_clear = |(x, y): &(u8, u8)| self.path_empty((*x, *y), board);
-        let not_occupied_by_same_colour =
-            |(x, y): &(u8, u8)| board.get(*x, *y) != &Some(self.colour);
-
-        let diagonals = (-7..=7)
-            .filter(|adj| *adj != 0)
-            .flat_map(|adj| [(x + adj, y + adj), (x - adj, y + adj)].into_iter())
-            .filter_map(is_on_board)
-            .filter(not_occupied_by_same_colour)
-            .filter(path_clear)
-            .map(Move::standard);
-
-        let straight_lines = (-7..=7)
-            .filter(|adj| *adj != 0)
-            .map(|adj| (x + adj, y))
-            .chain((-7..=7).filter(|adj| *adj != 0).map(|adj| (x, y + adj)))
-            .filter_map(is_on_board)
-            .filter(not_occupied_by_same_colour)
-            .filter(path_clear)
-            .map(Move::standard);
-
-        match self.kind {
-            PieceKind::King => [
-                (x - 1, y - 1),
-                (x - 1, y),
-                (x - 1, y + 1),
-                (x, y - 1),
-                (x, y + 1),
-                (x + 1, y - 1),
-                (x + 1, y),
-                (x + 1, y + 1),
-            ]
-            .into_iter()
-            .filter_map(is_on_board)
-            .filter(not_occupied_by_same_colour)
-            .map(Move::standard)
-            .collect(),
-            PieceKind::Queen => diagonals.chain(straight_lines).collect(),
-            PieceKind::Bishop => diagonals.collect(),
-            PieceKind::Knight => [
-                (x - 2, y - 1),
-                (x - 2, y + 1),
-                (x + 2, y - 1),
-                (x + 2, y + 1),
-                (x - 1, y - 2),
-                (x - 1, y + 2),
-                (x + 1, y - 2),
-                (x + 1, y + 2),
-            ]
-            .into_iter()
-            .filter_map(is_on_board)
-            .filter(not_occupied_by_same_colour)
-            .map(Move::standard)
-            .collect(),
-            PieceKind::Rook => straight_lines.collect(),
-            PieceKind::Pawn => {
-                let direction = self.colour.pawn_direction();
-                let starting_row = self.colour.starting_front_row() as i8;
-                let final_row = match self.colour {
-                    PieceColour::White => 7,
-                    PieceColour::Black => 0,
-                };
-
-                if x == final_row {
-                    vec![]
-                } else {
-                    let mut moves = Vec::with_capacity(4);
-
-                    let move_one = (x + direction) as u8;
-                    let move_two = (x + (2 * direction)) as u8;
-                    let y = y as u8;
-
-                    if board.get(move_one, y).is_none() {
-                        moves.push(Move::standard((move_one, y)));
-
-                        if x == starting_row && board.get(move_two, y).is_none() {
-                            moves.push(Move::pawn_double_step(move_two, y));
-                        }
-                    };
-
-                    let opposite_colour = if self.colour == PieceColour::White {
-                        PieceColour::Black
-                    } else {
-                        PieceColour::White
-                    };
-
-                    if y != 7 && board.get(move_one, y + 1).contains(&opposite_colour) {
-                        moves.push(Move::standard((move_one, y + 1)));
-                    };
-
-                    if y != 0 && board.get(move_one, y - 1).contains(&opposite_colour) {
-                        moves.push(Move::standard((move_one, y - 1)));
-                    };
-
-                    moves
-                }
-            }
-        }
-    }
-
-    fn path_empty(&self, to: (u8, u8), board: &BoardState) -> bool {
-        let (start_x, start_y) = (self.x, self.y);
-        let (end_x, end_y) = to;
-
-        // same column
-        if start_x == end_x {
-            let range = if start_y > end_y {
-                end_y..start_y
-            } else {
-                start_y..end_y
-            };
-
-            return range.skip(1).all(|y| board.get(start_x, y).is_none());
-        }
-
-        // same row
-        if start_y == end_y {
-            let range = if start_x > end_x {
-                end_x..start_x
-            } else {
-                start_x..end_x
-            };
-
-            return range.skip(1).all(|x| board.get(x, start_y).is_none());
-        }
-
-        let x_diff = start_x.abs_diff(end_x);
-        let y_diff = start_y.abs_diff(end_y);
-
-        // diagonal - this condition should always be true if it is reached
-        if x_diff == y_diff {
-            return (1..x_diff).all(|idx| {
-                let idx = idx as u8;
-                let (x, y) = if start_x < end_x && start_y < end_y {
-                    // bottom left -> top right
-                    (start_x + idx, start_y + idx)
-                } else if start_x < end_x {
-                    // top left -> bottom right
-                    (start_x + idx, start_y - idx)
-                } else if start_y < end_y {
-                    // bottom right -> top left
-                    (start_x - idx, start_y + idx)
-                } else {
-                    // top right -> bottom left
-                    (start_x - idx, start_y - idx)
-                };
-
-                board.get(x, y).is_none()
-            });
-        }
-
-        false
     }
 
     /// Array of squares this piece would move through to take a piece at `target`,
@@ -656,6 +466,71 @@ impl Piece {
             }
         });
         path
+    }
+
+    /// set `attack_empty_squares` to `false` when calculating potential moves, and `true` when checking if a move is safe
+    pub fn pawn_moves(&self, board: &BoardState, attack_empty_squares: bool) -> PawnMoves {
+        if self.kind != PieceKind::Pawn {
+            panic!("{:?} is not a pawn", self)
+        };
+
+        let x = self.x as i8;
+        let y = self.y;
+        let direction = self.colour.pawn_direction();
+        let starting_row = self.colour.starting_front_row() as i8;
+        // TODO once pawn promotion is implemented, a pawn should never start a turn on the final row
+        let final_row = starting_row + (direction * 6);
+
+        if x == final_row {
+            PawnMoves {
+                advance_one: None,
+                advance_two: None,
+                attack_left: None,
+                attack_right: None,
+            }
+        } else {
+            // note: pawns don't really fit into the "PiecePath" model
+            let move_one = (x + direction) as u8;
+            let move_two = (x + (2 * direction)) as u8;
+
+            let advance_one = board.get(move_one, y).is_none().then_some(PotentialMove {
+                move_: Move::standard((move_one, y)),
+                blocked_by: None,
+            });
+
+            let advance_two = (x == starting_row
+                && board.get(move_one, y).is_none()
+                && board.get(move_two, y).is_none())
+            .then_some(PotentialMove {
+                move_: Move::pawn_double_step(move_two, y),
+                blocked_by: None,
+            });
+
+            let left_diagonal_occupied =
+                || board.get(move_one, y - 1).contains(&self.colour.opposite());
+            let attack_left =
+                (y != 0 && (attack_empty_squares || left_diagonal_occupied())).then(|| {
+                    PotentialMove {
+                        move_: Move::standard((move_one, y - 1)),
+                        blocked_by: None,
+                    }
+                });
+
+            let right_diagonal_occupied =
+                || board.get(move_one, y + 1).contains(&self.colour.opposite());
+            let attack_right = (y != 7 && (attack_empty_squares || right_diagonal_occupied()))
+                .then(|| PotentialMove {
+                    move_: Move::standard((move_one, y + 1)),
+                    blocked_by: None,
+                });
+
+            PawnMoves {
+                advance_one,
+                advance_two,
+                attack_left,
+                attack_right,
+            }
+        }
     }
 }
 
