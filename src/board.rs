@@ -343,6 +343,7 @@ pub fn calculate_all_moves(
     );
     *all_moves = valid_moves;
 
+    // FIXME doesn't handle stalemate properly
     if player_pieces
         .into_iter()
         .all(|(entity, _)| all_moves.get(entity).is_empty())
