@@ -802,6 +802,70 @@ mod board_tests {
                 ]
             );
         }
+
+        #[test]
+        fn the_king_should_be_able_to_move_to_squares_that_are_potentially_attackable_but_blocked() {
+            let (mut world, mut update_stage) = setup();
+
+            let king_id = world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 4,
+            }).id();
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Bishop,
+                colour: PieceColour::Black,
+                x: 7,
+                y: 5,
+            });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Pawn,
+                colour: PieceColour::Black,
+                x: 6,
+                y: 5,
+            });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Pawn,
+                colour: PieceColour::Black,
+                x: 6,
+                y: 4,
+            });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Pawn,
+                colour: PieceColour::Black,
+                x: 6,
+                y: 3,
+            });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Knight,
+                colour: PieceColour::White,
+                x: 5,
+                y: 3,
+            });
+
+            world.spawn().insert(Piece {
+                kind: PieceKind::Queen,
+                colour: PieceColour::White,
+                x: 0,
+                y: 3,
+            });
+
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(king_id),
+                &vec![
+                    Move::standard((7, 3)),
+                ]
+            );
+        }
     }
 
     mod special_moves {

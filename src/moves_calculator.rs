@@ -149,7 +149,9 @@ impl AllPotentialMoves {
     }
 
     fn can_reach(&self, entity: Entity, x: u8, y: u8) -> bool {
-        self.path_to(entity, x, y).is_some()
+        self.path_to(entity, x, y)
+            .map(|path| path.obstructions().is_empty())
+            .unwrap_or(false)
     }
 
     fn path_to(&self, entity: Entity, x: u8, y: u8) -> Option<PiecePath> {
@@ -272,11 +274,13 @@ impl<'game> MoveCalculator<'game> {
                         // the interactions here than try to get PotentialMove/PiecePath to handle it properly
                         let will_attack_king = |move_: &Option<PotentialMove>| {
                             let Some(potential_move) = move_ else { return false };
-                            potential_move.move_.x == king_move.x && potential_move.move_.y == king_move.y
+                            potential_move.move_.x == king_move.x
+                                && potential_move.move_.y == king_move.y
                         };
                         let pawn_moves = piece.pawn_moves(&self.board_state, true);
 
-                        will_attack_king(&pawn_moves.attack_left) || will_attack_king(&pawn_moves.attack_right)
+                        will_attack_king(&pawn_moves.attack_left)
+                            || will_attack_king(&pawn_moves.attack_right)
                     } else {
                         potential_moves.can_reach(*entity, x, y)
                     }
