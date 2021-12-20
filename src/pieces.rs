@@ -125,7 +125,6 @@ impl PiecePath {
         }
     }
 
-    // TODO write more tests for this
     pub fn legal_path(&self) -> impl Iterator<Item = Move> + '_ {
         // this needs to return an Iterator (even though it makes this code a bit awkward)
         // otherwise it causes lifetime issues for the call sites in moves_calculator
@@ -143,6 +142,11 @@ impl PiecePath {
                     Some(potential_move.move_)
                 }
             })
+    }
+
+    #[cfg(test)]
+    pub fn legal_path_vec(&self) -> Vec<Move> {
+        self.legal_path().collect()
     }
 
     pub fn obstructions(&self) -> Vec<Obstruction> {
