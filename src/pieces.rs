@@ -26,6 +26,27 @@ pub struct Piece {
     pub x: u8,
     pub y: u8,
 }
+
+impl Piece {
+    pub fn white(kind: PieceKind, x: u8, y: u8) -> Self {
+        Piece {
+            colour: PieceColour::White,
+            kind,
+            x,
+            y,
+        }
+    }
+
+    pub fn black(kind: PieceKind, x: u8, y: u8) -> Self {
+        Piece {
+            colour: PieceColour::Black,
+            kind,
+            x,
+            y,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum PieceKind {
     King,
@@ -144,13 +165,12 @@ impl PiecePath {
             })
     }
 
-    #[cfg(test)]
     pub fn legal_path_vec(&self) -> Vec<Move> {
         self.legal_path().collect()
     }
 
     pub fn obstructions(&self) -> Vec<Obstruction> {
-        self.potential_moves
+        let all_obstructions = self.potential_moves
             .iter()
             .filter_map(|potential_move| {
                 potential_move.blocked_by.map(|blockage| Obstruction {
@@ -159,7 +179,19 @@ impl PiecePath {
                     colour: blockage,
                 })
             })
-            .collect()
+            .collect::<Vec<_>>();
+
+        // the final piece on the path isn't an obstruction if it is a different colour, as it can be captured
+        if let Some(last) = all_obstructions.last() {
+            if last.colour != self.colour {
+                let len = all_obstructions.len() - 1;
+                all_obstructions.into_iter().take(len).collect()
+            } else {
+                all_obstructions
+            }
+        } else {
+            all_obstructions
+        }
     }
 
     pub fn contains(&self, x: u8, y: u8) -> bool {
@@ -440,23 +472,35 @@ fn move_pieces(
     mut turn: ResMut<PlayerTurn>,
     mut query: Query<(Entity, &MovePiece, &mut Piece, &mut Transform)>,
 ) {
-    let (piece_entity, move_piece, mut piece, mut transform) = query.single_mut().unwrap();
+    // note: castling moves two pieces on the same turn
 
-    let direction =
-        Vec3::new(move_piece.target_x, 0.0, move_piece.target_y) - transform.translation;
+    let any_updated =
+        query
+            .iter_mut()
+            .any(|(piece_entity, move_piece, mut piece, mut transform)| {
+                let direction = Vec3::new(move_piece.target_x, 0.0, move_piece.target_y)
+                    - transform.translation;
 
-    if direction.length() > f32::EPSILON * 2.0 {
-        let delta = VELOCITY * (direction.normalize() * time.delta_seconds());
-        if delta.length() > direction.length() {
-            transform.translation += direction;
-        } else {
-            transform.translation += delta;
-        }
-    } else {
-        piece.x = move_piece.target_x as u8;
-        piece.y = move_piece.target_y as u8;
+                if direction.length() > f32::EPSILON * 2.0 {
+                    let delta = VELOCITY * (direction.normalize() * time.delta_seconds());
+                    if delta.length() > direction.length() {
+                        transform.translation += direction;
+                    } else {
+                        transform.translation += delta;
+                    }
 
-        commands.entity(piece_entity).remove::<MovePiece>();
+                    true
+                } else {
+                    piece.x = move_piece.target_x as u8;
+                    piece.y = move_piece.target_y as u8;
+
+                    commands.entity(piece_entity).remove::<MovePiece>();
+
+                    false
+                }
+            });
+
+    if !any_updated {
         turn.next();
         state.set(GameState::NothingSelected).unwrap();
     }

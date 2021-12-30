@@ -869,6 +869,40 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(all_valid_moves.get(king_id), &vec![Move::standard((7, 3)),]);
         }
+
+        // see bug screenshots 1
+        #[test]
+        fn fix_bug_1_incorrectly_restricted_move_calculations() {
+            let (mut world, mut update_stage) = setup();
+
+            world.spawn().insert(Piece::white(PieceKind::King, 0, 4));
+            world.spawn().insert(Piece::white(PieceKind::Pawn, 2, 3));
+            world.spawn().insert(Piece::white(PieceKind::Pawn, 1, 4));
+            world.spawn().insert(Piece::white(PieceKind::Pawn, 1, 2));
+
+            world.spawn().insert(Piece::black(PieceKind::King, 7, 4));
+            world.spawn().insert(Piece::black(PieceKind::Queen, 6, 4));
+            world.spawn().insert(Piece::black(PieceKind::Pawn, 5, 4));
+
+            let queen_id = world
+                .spawn()
+                .insert(Piece::white(PieceKind::Queen, 0, 3))
+                .id();
+
+            world.insert_resource(PlayerTurn(PieceColour::White));
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(queen_id),
+                &vec![
+                    Move::standard((1, 3)),
+                    Move::standard((0, 2)),
+                    Move::standard((0, 1)),
+                    Move::standard((0, 0)),
+                ]
+            );
+        }
     }
 
     mod special_moves {
@@ -3516,10 +3550,7 @@ mod piece_tests {
                 ]
             );
 
-            assert_eq!(
-                valid_moves[0].legal_path_vec(),
-                vec![]
-            );
+            assert_eq!(valid_moves[0].legal_path_vec(), vec![]);
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
                 vec![
@@ -3599,10 +3630,7 @@ mod piece_tests {
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![
-                    Move::standard((1, 2)),
-                    Move::standard((1, 3)),
-                ]
+                vec![Move::standard((1, 2)), Move::standard((1, 3)),]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),

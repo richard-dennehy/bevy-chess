@@ -149,12 +149,12 @@ impl AllPotentialMoves {
     }
 
     fn can_reach(&self, entity: Entity, x: u8, y: u8) -> bool {
-        self.path_to(entity, x, y)
+        self.potential_path_to(entity, x, y)
             .map(|path| path.obstructions().is_empty())
             .unwrap_or(false)
     }
 
-    fn path_to(&self, entity: Entity, x: u8, y: u8) -> Option<PiecePath> {
+    fn potential_path_to(&self, entity: Entity, x: u8, y: u8) -> Option<PiecePath> {
         self.get(entity)
             .iter()
             .find_map(|path| path.truncate_to(x, y))
@@ -294,19 +294,23 @@ impl<'game> MoveCalculator<'game> {
     fn pieces_attacking_king(
         &self,
         potential_moves: &AllPotentialMoves,
-    ) -> Vec<(Entity, &Piece, PiecePath)> {
+    ) -> Vec<(Entity, &Piece, Moves)> {
         self.opposite_pieces
             .iter()
             .filter_map(|(entity, piece)| {
-                potential_moves
-                    .path_to(*entity, self.king.x, self.king.y)
-                    .map(|p| (*entity, *piece, p))
+                let legal_path = potential_moves
+                    .potential_path_to(*entity, self.king.x, self.king.y)?
+                    .legal_path_vec();
+
+                legal_path
+                    .contains(&Move::standard((self.king.x, self.king.y)))
+                    .then(|| (*entity, *piece, legal_path))
             })
             .collect::<Vec<_>>()
     }
 
     fn calculate_safe_player_moves(&self, potential_moves: &AllPotentialMoves) -> Vec<PieceMoves> {
-        let potential_threats = self.calculate_potential_threats(potential_moves);
+        let potential_threats = self.calculate_potential_threats_to_king(potential_moves);
 
         self.player_pieces
             .iter()
@@ -335,14 +339,14 @@ impl<'game> MoveCalculator<'game> {
             .collect()
     }
 
-    fn calculate_potential_threats(
+    fn calculate_potential_threats_to_king(
         &self,
         potential_moves: &AllPotentialMoves,
     ) -> Vec<(&'game Piece, PiecePath)> {
         self.opposite_pieces
             .iter()
             .filter_map(|(entity, piece)| {
-                let path = potential_moves.path_to(*entity, self.king.x, self.king.y)?;
+                let path = potential_moves.potential_path_to(*entity, self.king.x, self.king.y)?;
 
                 let obstructions = path.obstructions();
                 // if the path is blocked by 2+ pieces, or by a piece of the same colour, it can't put the king in check during this turn
@@ -358,7 +362,7 @@ impl<'game> MoveCalculator<'game> {
 
     fn calculate_check_counter_moves(
         &self,
-        pieces_attacking_king: Vec<(Entity, &Piece, PiecePath)>,
+        pieces_attacking_king: Vec<(Entity, &Piece, Moves)>,
         potential_moves: &AllPotentialMoves,
     ) -> Vec<PieceMoves> {
         let safe_king_moves = self.calculate_safe_king_moves(potential_moves);
@@ -383,7 +387,7 @@ impl<'game> MoveCalculator<'game> {
                                     && opposite_piece.y == piece_move.y;
 
                                 let blocks_piece =
-                                    path_to_king.contains(piece_move.x, piece_move.y);
+                                    path_to_king.contains(&Move::standard((piece_move.x, piece_move.y)));
 
                                 can_take_en_passant || can_take_directly || blocks_piece
                             },
