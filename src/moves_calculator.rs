@@ -282,7 +282,9 @@ impl<'game> MoveCalculator<'game> {
                         will_attack_king(&pawn_moves.attack_left)
                             || will_attack_king(&pawn_moves.attack_right)
                     } else {
-                        potential_moves.can_reach(*entity, x, y)
+                        // check that the square isn't directly attacked, or that the king isn't currently blocking that square from being attacked
+                        let Some(path) = potential_moves.potential_path_to(*entity, x, y) else { return false };
+                        path.obstructions().is_empty() || (path.obstructions().len() == 1 && path.obstructions()[0].x == self.king.x && path.obstructions()[0].y == self.king.y)
                     }
                 });
 
@@ -348,8 +350,12 @@ impl<'game> MoveCalculator<'game> {
             .filter_map(|(entity, piece)| {
                 let path = potential_moves.potential_path_to(*entity, self.king.x, self.king.y)?;
 
-                let obstructions = path.obstructions();
-                // if the path is blocked by 2+ pieces, or by a piece of the same colour, it can't put the king in check during this turn
+                let obstructions = path
+                    .obstructions()
+                    .into_iter()
+                    .filter(|obs| obs.x != self.king.x || obs.y != self.king.y)
+                    .collect::<Vec<_>>();
+                // if the path is blocked by 2+ pieces _excluding the king_, or by a piece of the same colour, it can't put the king in check during this turn
                 let blocked = obstructions.len() >= 2
                     || obstructions
                         .into_iter()
@@ -386,8 +392,8 @@ impl<'game> MoveCalculator<'game> {
                                 let can_take_directly = opposite_piece.x == piece_move.x
                                     && opposite_piece.y == piece_move.y;
 
-                                let blocks_piece =
-                                    path_to_king.contains(&Move::standard((piece_move.x, piece_move.y)));
+                                let blocks_piece = path_to_king
+                                    .contains(&Move::standard((piece_move.x, piece_move.y)));
 
                                 can_take_en_passant || can_take_directly || blocks_piece
                             },

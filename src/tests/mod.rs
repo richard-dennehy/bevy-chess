@@ -903,6 +903,47 @@ mod board_tests {
                 ]
             );
         }
+
+        // see bug screenshots 2
+        #[test]
+        fn fix_bug_2_incorrect_king_move_calculations() {
+            let (mut world, mut update_stage) = setup();
+
+            let king_id = world.spawn().insert(Piece::white(PieceKind::King, 0, 3)).id();
+            world.spawn().insert(Piece::white(PieceKind::Knight, 4, 4));
+            world.spawn().insert(Piece::black(PieceKind::Rook, 7, 4));
+
+            world.insert_resource(PlayerTurn(PieceColour::White));
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(king_id), &vec![
+                Move::standard((0, 2)),
+                Move::standard((0, 4)),
+                Move::standard((1, 2)),
+                Move::standard((1, 3)),
+                Move::standard((1, 4)),
+            ]);
+        }
+
+        // see bug screenshots 3
+        #[test]
+        fn fix_bug_3_illegal_king_move_allowed() {
+            let (mut world, mut update_stage) = setup();
+
+            let king_id = world.spawn().insert(Piece::white(PieceKind::King, 0, 4)).id();
+            world.spawn().insert(Piece::black(PieceKind::Queen, 0, 1));
+
+            world.insert_resource(PlayerTurn(PieceColour::White));
+            update_stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(all_valid_moves.get(king_id), &vec![
+                Move::standard((1, 3)),
+                Move::standard((1, 4)),
+                Move::standard((1, 5)),
+            ]);
+        }
     }
 
     mod special_moves {

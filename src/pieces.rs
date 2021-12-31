@@ -170,7 +170,7 @@ impl PiecePath {
     }
 
     pub fn obstructions(&self) -> Vec<Obstruction> {
-        let all_obstructions = self.potential_moves
+        self.potential_moves
             .iter()
             .filter_map(|potential_move| {
                 potential_move.blocked_by.map(|blockage| Obstruction {
@@ -179,19 +179,7 @@ impl PiecePath {
                     colour: blockage,
                 })
             })
-            .collect::<Vec<_>>();
-
-        // the final piece on the path isn't an obstruction if it is a different colour, as it can be captured
-        if let Some(last) = all_obstructions.last() {
-            if last.colour != self.colour {
-                let len = all_obstructions.len() - 1;
-                all_obstructions.into_iter().take(len).collect()
-            } else {
-                all_obstructions
-            }
-        } else {
-            all_obstructions
-        }
+            .collect()
     }
 
     pub fn contains(&self, x: u8, y: u8) -> bool {
