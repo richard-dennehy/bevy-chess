@@ -12,6 +12,7 @@ impl Plugin for BoardPlugin {
         app.init_resource::<SquareMaterials>()
             .init_resource::<SelectedSquare>()
             .init_resource::<SelectedPiece>()
+            .init_resource::<PromotedPawn>()
             .init_resource::<PlayerTurn>()
             .init_resource::<AllValidMoves>()
             .init_resource::<Option<HighlightedSquare>>()
@@ -115,6 +116,8 @@ pub struct Taken;
 pub struct SelectedSquare(pub Option<Entity>);
 #[derive(Default)]
 pub struct SelectedPiece(pub Option<Entity>);
+#[derive(Default)]
+pub struct PromotedPawn(pub Option<Entity>);
 
 #[derive(Debug, PartialEq)]
 pub struct LastPawnDoubleStep {
@@ -195,6 +198,7 @@ pub enum GameState {
     TargetSquareSelected,
     MovingPiece,
     Checkmate(PieceColour),
+    PawnPromotion,
 }
 
 impl core::fmt::Display for GameState {
@@ -209,6 +213,9 @@ impl core::fmt::Display for GameState {
             }
             GameState::Checkmate(colour) => {
                 write!(f, "{}'s King is in checkmate\nPress R to restart", colour)
+            },
+            GameState::PawnPromotion => {
+                write!(f, "A pawn can be promoted\nPress Left/Right to cycle between options and Enter to confirm promotion")
             }
         }
     }
@@ -265,6 +272,7 @@ fn colour_squares(
     pieces: Query<(Entity, &Piece)>,
     squares: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
 ) {
+    // todo highlight pawn promotion
     squares.for_each_mut(|(entity, square, mut material)| {
         if selected_square.0.contains(&entity) {
             *material = materials.selected.clone();
@@ -423,6 +431,7 @@ pub fn move_piece(
     player_turn: Res<PlayerTurn>,
     mut game_state: ResMut<State<GameState>>,
     mut special_move_data: ResMut<SpecialMoveData>,
+    mut promoted_pawn: ResMut<PromotedPawn>,
     squares: Query<&Square>,
     mut pieces: Query<(Entity, &mut Piece)>,
 ) {
@@ -450,6 +459,8 @@ pub fn move_piece(
                             x: square.x,
                             y: square.y,
                         });
+                } else if valid_move.x == player_turn.0.final_row() {
+                    promoted_pawn.0 = Some(piece_id);
                 }
             } else if piece.kind == PieceKind::King {
                 let mut castling_data = special_move_data.castling_data_mut(player_turn.0);

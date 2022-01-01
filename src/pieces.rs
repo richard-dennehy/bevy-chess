@@ -1,4 +1,4 @@
-use crate::board::{BoardState, GameState, MovePiece, PlayerTurn};
+use crate::board::{BoardState, GameState, MovePiece, PlayerTurn, PromotedPawn};
 use crate::moves_calculator::{Move, PotentialMove};
 use bevy::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
@@ -15,6 +15,10 @@ impl Plugin for PiecePlugin {
             )
             .add_system_set(
                 SystemSet::on_update(GameState::MovingPiece).with_system(move_pieces.system()),
+            )
+            .add_system_set(
+                SystemSet::on_update(GameState::PawnPromotion)
+                    .with_system(promote_pawn_at_final_rank.system()),
             );
     }
 }
@@ -89,6 +93,13 @@ impl PieceColour {
         match self {
             PieceColour::White => 0,
             PieceColour::Black => 7,
+        }
+    }
+
+    pub fn final_row(&self) -> u8 {
+        match self {
+            PieceColour::White => 7,
+            PieceColour::Black => 0,
         }
     }
 }
@@ -456,6 +467,7 @@ const VELOCITY: f32 = 7.0;
 fn move_pieces(
     mut commands: Commands,
     time: Res<Time>,
+    promoted_pawn: Res<PromotedPawn>,
     mut state: ResMut<State<GameState>>,
     mut turn: ResMut<PlayerTurn>,
     mut query: Query<(Entity, &MovePiece, &mut Piece, &mut Transform)>,
@@ -489,8 +501,12 @@ fn move_pieces(
             });
 
     if !any_updated {
-        turn.next();
-        state.set(GameState::NothingSelected).unwrap();
+        if let Some(_) = promoted_pawn.0 {
+            state.set(GameState::PawnPromotion).unwrap();
+        } else {
+            turn.next();
+            state.set(GameState::NothingSelected).unwrap();
+        }
     }
 }
 
@@ -525,8 +541,8 @@ fn spawn_side(
     material: Handle<StandardMaterial>,
     colour: PieceColour,
 ) {
-    let back_row = if colour == PieceColour::White { 0 } else { 7 };
-    let front_row = if colour == PieceColour::White { 1 } else { 6 };
+    let back_row = colour.starting_back_row();
+    let front_row = colour.starting_front_row();
 
     spawn_rook(
         commands,
@@ -693,7 +709,7 @@ fn spawn_queen(
     queen: Handle<Mesh>,
     colour: PieceColour,
     (x, y): (u8, u8),
-) {
+) -> Entity {
     commands
         .spawn_bundle(PbrBundle {
             transform: place_on_square(colour, x, y),
@@ -716,7 +732,7 @@ fn spawn_queen(
                 },
                 ..Default::default()
             });
-        });
+        }).id()
 }
 
 fn spawn_bishop(
@@ -817,6 +833,40 @@ fn spawn_pawn(
         });
 }
 
+fn promote_pawn_at_final_rank(
+    mut commands: Commands,
+    mut game_state: ResMut<State<GameState>>,
+    mut turn: ResMut<PlayerTurn>,
+    mut promoted_pawn: ResMut<PromotedPawn>,
+    input: Res<Input<KeyCode>>,
+    meshes: Res<PieceMeshes>,
+    materials: Res<PieceMaterials>,
+    pieces: Query<(Entity, &Piece)>,
+) {
+    if input.pressed(KeyCode::Return) {
+        promoted_pawn.0 = None;
+        turn.next();
+        game_state.set(GameState::NothingSelected).unwrap();
+    };
+
+    let Some(entity) = promoted_pawn.0 else { return; };
+    let (_, piece) = pieces
+        .get(entity)
+        .expect("promoted pawn should always exist");
+    let (x, y) = (piece.x, piece.y);
+    commands.entity(entity).despawn_recursive();
+
+    let material = materials.get(turn.0);
+    let new_entity = spawn_queen(
+        &mut commands,
+        material,
+        meshes.queen.clone(),
+        turn.0,
+        (x, y),
+    );
+    promoted_pawn.0 = Some(new_entity);
+}
+
 fn place_on_square(colour: PieceColour, x: u8, y: u8) -> Transform {
     let angle = if colour == PieceColour::Black {
         PI
@@ -860,6 +910,15 @@ impl FromWorld for PieceMeshes {
 struct PieceMaterials {
     white: Handle<StandardMaterial>,
     black: Handle<StandardMaterial>,
+}
+
+impl PieceMaterials {
+    pub fn get(&self, piece_colour: PieceColour) -> Handle<StandardMaterial> {
+        match piece_colour {
+            PieceColour::White => self.white.clone(),
+            PieceColour::Black => self.black.clone(),
+        }
+    }
 }
 
 impl FromWorld for PieceMaterials {
