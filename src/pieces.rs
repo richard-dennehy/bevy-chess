@@ -666,7 +666,7 @@ fn spawn_knight(
     knight: Handle<Mesh>,
     colour: PieceColour,
     (x, y): (u8, u8),
-) {
+) -> Entity {
     commands
         .spawn_bundle(PbrBundle {
             transform: place_on_square(colour, x, y),
@@ -700,9 +700,11 @@ fn spawn_knight(
                 },
                 ..Default::default()
             });
-        });
+        })
+        .id()
 }
 
+// TODO make spawn functions take PieceMaterials and PieceMeshes instead
 fn spawn_queen(
     commands: &mut Commands,
     material: Handle<StandardMaterial>,
@@ -732,7 +734,8 @@ fn spawn_queen(
                 },
                 ..Default::default()
             });
-        }).id()
+        })
+        .id()
 }
 
 fn spawn_bishop(
@@ -741,7 +744,7 @@ fn spawn_bishop(
     bishop: Handle<Mesh>,
     colour: PieceColour,
     (x, y): (u8, u8),
-) {
+) -> Entity {
     commands
         .spawn_bundle(PbrBundle {
             transform: place_on_square(colour, x, y),
@@ -766,7 +769,8 @@ fn spawn_bishop(
                 },
                 ..Default::default()
             });
-        });
+        })
+        .id()
 }
 
 fn spawn_rook(
@@ -775,7 +779,7 @@ fn spawn_rook(
     rook: Handle<Mesh>,
     colour: PieceColour,
     (x, y): (u8, u8),
-) {
+) -> Entity {
     commands
         .spawn_bundle(PbrBundle {
             transform: place_on_square(colour, x, y),
@@ -798,7 +802,8 @@ fn spawn_rook(
                 },
                 ..Default::default()
             });
-        });
+        })
+        .id()
 }
 
 fn spawn_pawn(
@@ -843,27 +848,81 @@ fn promote_pawn_at_final_rank(
     materials: Res<PieceMaterials>,
     pieces: Query<(Entity, &Piece)>,
 ) {
-    if input.pressed(KeyCode::Return) {
+    let entity = promoted_pawn
+        .0
+        .expect("should always have a promoted pawn entity when in PawnPromotion state");
+    let (_, piece) = pieces
+        .get(entity)
+        .expect("promoted pawn should always exist");
+
+    if input.just_pressed(KeyCode::Return) && piece.kind != PieceKind::Pawn {
         promoted_pawn.0 = None;
         turn.next();
         game_state.set(GameState::NothingSelected).unwrap();
     };
 
-    let Some(entity) = promoted_pawn.0 else { return; };
-    let (_, piece) = pieces
-        .get(entity)
-        .expect("promoted pawn should always exist");
+    let promotions = [
+        PieceKind::Knight,
+        PieceKind::Bishop,
+        PieceKind::Rook,
+        PieceKind::Queen,
+    ];
+
+    let index_of = |kind: PieceKind| {
+        promotions
+            .iter()
+            .enumerate()
+            .find_map(|(idx, k)| (*k == kind).then(|| idx))
+            .expect(&format!(
+                "promoted to unexpected piece kind {:?}",
+                piece.kind
+            ))
+    };
+
+    let new_kind = if piece.kind == PieceKind::Pawn && input.just_pressed(KeyCode::Left) {
+        PieceKind::Queen
+    } else if piece.kind == PieceKind::Pawn && input.just_pressed(KeyCode::Right) {
+        PieceKind::Knight
+    } else if input.just_pressed(KeyCode::Left) {
+        let index = index_of(piece.kind);
+        promotions[(index as isize - 1) as usize % promotions.len()]
+    } else if input.just_pressed(KeyCode::Right) {
+        let index = index_of(piece.kind);
+        promotions[(index + 1) % promotions.len()]
+    } else {
+        return;
+    };
+
     let (x, y) = (piece.x, piece.y);
     commands.entity(entity).despawn_recursive();
 
     let material = materials.get(turn.0);
-    let new_entity = spawn_queen(
-        &mut commands,
-        material,
-        meshes.queen.clone(),
-        turn.0,
-        (x, y),
-    );
+    let new_entity = match new_kind {
+        PieceKind::Queen => spawn_queen(
+            &mut commands,
+            material,
+            meshes.queen.clone(),
+            turn.0,
+            (x, y),
+        ),
+        PieceKind::Bishop => spawn_bishop(
+            &mut commands,
+            material,
+            meshes.bishop.clone(),
+            turn.0,
+            (x, y),
+        ),
+        PieceKind::Knight => spawn_knight(
+            &mut commands,
+            material,
+            meshes.knight_base.clone(),
+            meshes.knight.clone(),
+            turn.0,
+            (x, y),
+        ),
+        PieceKind::Rook => spawn_rook(&mut commands, material, meshes.rook.clone(), turn.0, (x, y)),
+        _ => panic!("promoted to invalid piece kind {:?}", new_kind),
+    };
     promoted_pawn.0 = Some(new_entity);
 }
 
