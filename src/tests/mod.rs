@@ -948,11 +948,7 @@ mod board_tests {
 
     mod special_moves {
         use super::*;
-        use crate::board::{
-            calculate_all_moves, move_piece, AllValidMoves, CastlingData, GameState,
-            LastPawnDoubleStep, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare,
-            SpecialMoveData, Square, Taken,
-        };
+        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, CastlingData, GameState, LastPawnDoubleStep, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, SpecialMoveData, Square, Taken, PromotedPawn};
         use crate::moves_calculator::Move;
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
@@ -1027,6 +1023,7 @@ mod board_tests {
             world.insert_resource(State::new(GameState::NothingSelected));
             world.insert_resource(SelectedSquare::default());
             world.insert_resource(SelectedPiece::default());
+            world.insert_resource(PromotedPawn::default());
             world.insert_resource(SpecialMoveData::default());
 
             (0..8).for_each(|x| {

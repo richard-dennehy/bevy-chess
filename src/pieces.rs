@@ -406,7 +406,6 @@ impl Piece {
         let y = self.y;
         let direction = self.colour.pawn_direction();
         let starting_row = self.colour.starting_front_row() as i8;
-        // TODO once pawn promotion is implemented, a pawn should never start a turn on the final row
         let final_row = starting_row + (direction * 6);
 
         if x == final_row {

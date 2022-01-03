@@ -1,10 +1,10 @@
 use crate::moves_calculator;
+use crate::moves_calculator::{Move, MoveKind};
 use crate::pieces::{Piece, PieceColour, PieceKind};
 use bevy::prelude::*;
 use bevy::utils::HashMap;
 use bevy_mod_picking::{PickableBundle, PickingCamera};
 use std::fmt::Formatter;
-use crate::moves_calculator::{Move, MoveKind};
 
 pub struct BoardPlugin;
 impl Plugin for BoardPlugin {
@@ -54,7 +54,8 @@ impl Plugin for BoardPlugin {
             )
             .add_system_set(
                 SystemSet::on_exit(GameState::TargetSquareSelected)
-                    .with_system(despawn_taken_pieces.system()),
+                    .with_system(despawn_taken_pieces.system())
+                    .with_system(reset_selected.system()),
             );
     }
 }
@@ -213,7 +214,7 @@ impl core::fmt::Display for GameState {
             }
             GameState::Checkmate(colour) => {
                 write!(f, "{}'s King is in checkmate\nPress R to restart", colour)
-            },
+            }
             GameState::PawnPromotion => {
                 write!(f, "A pawn can be promoted\nPress Left/Right to cycle between options and Enter to confirm promotion")
             }
@@ -264,15 +265,16 @@ fn create_board(
 
 // fixme this is highlighting the selected piece as well as its valid moves
 fn colour_squares(
+    mut highlighted_square: ResMut<Option<HighlightedSquare>>,
     turn: Res<PlayerTurn>,
     selected_square: Res<SelectedSquare>,
     valid_moves: Res<AllValidMoves>,
     selected_piece: Res<SelectedPiece>,
+    promoted_pawn: Res<PromotedPawn>,
     materials: Res<SquareMaterials>,
     pieces: Query<(Entity, &Piece)>,
-    squares: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
+    mut squares: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
 ) {
-    // todo highlight pawn promotion
     squares.for_each_mut(|(entity, square, mut material)| {
         if selected_square.0.contains(&entity) {
             *material = materials.selected.clone();
@@ -299,12 +301,30 @@ fn colour_squares(
             }
         };
 
+        if let Some(promoted) = promoted_pawn.0 {
+            let piece = pieces.iter().find(|(entity, piece)| {
+                piece.x == square.x && piece.y == square.y && promoted == *entity
+            });
+
+            if let Some(_) = piece {
+                *material = materials.selected.clone();
+                return;
+            }
+        }
+
         *material = if square.is_white() {
             materials.white.clone()
         } else {
             materials.black.clone()
         };
     });
+
+    if let Some(highlighted) = &mut *highlighted_square {
+        let (_, _, material) = squares
+            .get_mut(highlighted.entity_id)
+            .expect("highlighted square should always exist");
+        highlighted.previous_material = material.clone()
+    }
 }
 
 fn highlight_square_on_hover(
@@ -443,7 +463,9 @@ pub fn move_piece(
 
     if let Some(piece_id) = selected_piece.0 {
         let valid_moves = all_valid_moves.get(piece_id);
-        let maybe_valid_move = valid_moves.into_iter().find(|m| m.x == square.x && m.y == square.y);
+        let maybe_valid_move = valid_moves
+            .into_iter()
+            .find(|m| m.x == square.x && m.y == square.y);
         if let Some(valid_move) = maybe_valid_move {
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
             let _ = special_move_data.last_pawn_double_step.take();
@@ -467,8 +489,12 @@ pub fn move_piece(
                 castling_data.king_moved = true;
 
                 if let MoveKind::Castle {
-                    rook_id, king_target_y, rook_target_y, kingside,
-                } = valid_move.kind {
+                    rook_id,
+                    king_target_y,
+                    rook_target_y,
+                    kingside,
+                } = valid_move.kind
+                {
                     commands.entity(piece_id).insert(MovePiece {
                         target_x: square.x as f32,
                         target_y: king_target_y as f32,
@@ -584,13 +610,19 @@ struct SquareMaterials {
 
 impl FromWorld for SquareMaterials {
     fn from_world(world: &mut World) -> Self {
+        // TODO need to create a separate plane to represent the board then draw highlights on top of it
+        let assets = world.get_resource::<AssetServer>().unwrap();
+        let highlight = assets.load("textures/highlighted.png");
+        let selected = assets.load("textures/selected.png");
+        let valid_selection = assets.load("textures/valid_selection.png");
+
         let mut materials = world
             .get_resource_mut::<Assets<StandardMaterial>>()
             .unwrap();
         SquareMaterials {
-            highlight: materials.add(Color::rgb(0.8, 0.3, 0.3).into()),
-            selected: materials.add(Color::rgb(0.9, 0.1, 0.1).into()),
-            valid_selection: materials.add(Color::rgb(0.4, 0.4, 0.9).into()),
+            highlight: materials.add(highlight.into()),
+            selected: materials.add(selected.into()),
+            valid_selection: materials.add(valid_selection.into()),
             black: materials.add(Color::rgb(0.0, 0.1, 0.1).into()),
             white: materials.add(Color::rgb(1.0, 0.9, 0.9).into()),
         }
