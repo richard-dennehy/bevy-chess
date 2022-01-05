@@ -106,7 +106,8 @@ pub struct Square {
 }
 
 impl Square {
-    fn is_white(&self) -> bool {
+    // TODO maybe delete
+    pub fn is_white(&self) -> bool {
         (self.x + self.y + 1) % 2 == 0
     }
 }
@@ -249,12 +250,12 @@ fn create_board(
             commands
                 .spawn_bundle(PbrBundle {
                     mesh: mesh.clone(),
-                    material: if square.is_white() {
-                        materials.white.clone()
-                    } else {
-                        materials.black.clone()
-                    },
+                    material: materials.none.clone(),
                     transform: Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32)),
+                    visible: Visible {
+                        is_transparent: true,
+                        is_visible: true,
+                    },
                     ..Default::default()
                 })
                 .insert_bundle(PickableBundle::default())
@@ -312,11 +313,7 @@ fn colour_squares(
             }
         }
 
-        *material = if square.is_white() {
-            materials.white.clone()
-        } else {
-            materials.black.clone()
-        };
+        *material = materials.none.clone();
     });
 
     if let Some(highlighted) = &mut *highlighted_square {
@@ -327,6 +324,7 @@ fn colour_squares(
     }
 }
 
+// TODO maybe implement this by drawing the highlight on top of the overlay
 fn highlight_square_on_hover(
     materials: Res<SquareMaterials>,
     mut previous_highlighted_square: ResMut<Option<HighlightedSquare>>,
@@ -604,13 +602,11 @@ struct SquareMaterials {
     highlight: Handle<StandardMaterial>,
     selected: Handle<StandardMaterial>,
     valid_selection: Handle<StandardMaterial>,
-    black: Handle<StandardMaterial>,
-    white: Handle<StandardMaterial>,
+    none: Handle<StandardMaterial>,
 }
 
 impl FromWorld for SquareMaterials {
     fn from_world(world: &mut World) -> Self {
-        // TODO need to create a separate plane to represent the board then draw highlights on top of it
         let assets = world.get_resource::<AssetServer>().unwrap();
         let highlight = assets.load("textures/highlighted.png");
         let selected = assets.load("textures/selected.png");
@@ -623,8 +619,7 @@ impl FromWorld for SquareMaterials {
             highlight: materials.add(highlight.into()),
             selected: materials.add(selected.into()),
             valid_selection: materials.add(valid_selection.into()),
-            black: materials.add(Color::rgb(0.0, 0.1, 0.1).into()),
-            white: materials.add(Color::rgb(1.0, 0.9, 0.9).into()),
+            none: materials.add(Color::NONE.into()),
         }
     }
 }

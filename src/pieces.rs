@@ -9,6 +9,7 @@ impl Plugin for PiecePlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<PieceMeshes>()
             .init_resource::<PieceMaterials>()
+            .add_startup_system(create_board.system())
             .add_startup_system(create_pieces.system())
             .add_system_set(
                 SystemSet::on_update(GameState::NewGame).with_system(reset_pieces.system()),
@@ -519,7 +520,26 @@ fn reset_pieces(
     create_pieces(commands, meshes, materials);
 }
 
-fn create_pieces(mut commands: Commands, meshes: Res<PieceMeshes>, materials: Res<PieceMaterials>) {
+fn create_board(mut commands: Commands, assets: Res<AssetServer>) {
+    let chessboard = assets.load("meshes/chessboard.glb#Scene0");
+
+    let scale_factor = 16.6;
+    let scale = Transform::from_scale(Vec3::new(scale_factor, scale_factor, scale_factor));
+    let translation = Transform::from_xyz(3.5, -0.06 * scale_factor, 3.5);
+    let transform = translation * scale;
+
+    commands
+        .spawn_bundle((transform, GlobalTransform::identity()))
+        .with_children(|parent| {
+            parent.spawn_scene(chessboard);
+        });
+}
+
+fn create_pieces(
+    mut commands: Commands,
+    meshes: Res<PieceMeshes>,
+    materials: Res<PieceMaterials>,
+) {
     spawn_side(
         &mut commands,
         &meshes,
