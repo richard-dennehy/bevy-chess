@@ -1,7 +1,7 @@
 use crate::board::{BoardState, GameState, MovePiece, PlayerTurn, PromotedPawn};
 use crate::moves_calculator::{Move, PotentialMove};
 use bevy::prelude::*;
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::f32::consts::PI;
 use std::fmt::Formatter;
 
 pub struct PiecePlugin;
@@ -478,7 +478,7 @@ fn move_pieces(
         query
             .iter_mut()
             .any(|(piece_entity, move_piece, mut piece, mut transform)| {
-                let direction = Vec3::new(move_piece.target_x, 0.0, move_piece.target_y)
+                let direction = move_piece.world_space_target()
                     - transform.translation;
 
                 if direction.length() > f32::EPSILON * 2.0 {
@@ -491,8 +491,7 @@ fn move_pieces(
 
                     true
                 } else {
-                    piece.x = move_piece.target_x as u8;
-                    piece.y = move_piece.target_y as u8;
+                    (piece.x, piece.y) = move_piece.board_space_target();
 
                     commands.entity(piece_entity).remove::<MovePiece>();
 
@@ -523,9 +522,9 @@ fn reset_pieces(
 fn create_board(mut commands: Commands, assets: Res<AssetServer>) {
     let chessboard = assets.load("meshes/chessboard.glb#Scene0");
 
-    let scale_factor = 16.6;
+    let scale_factor = 15.0;
     let scale = Transform::from_scale(Vec3::new(scale_factor, scale_factor, scale_factor));
-    let translation = Transform::from_xyz(3.5, -0.06 * scale_factor, 3.5);
+    let translation = Transform::from_xyz(0.0, -0.062 * scale_factor, 0.0);
     let transform = translation * scale;
 
     commands
@@ -535,11 +534,7 @@ fn create_board(mut commands: Commands, assets: Res<AssetServer>) {
         });
 }
 
-fn create_pieces(
-    mut commands: Commands,
-    meshes: Res<PieceMeshes>,
-    materials: Res<PieceMaterials>,
-) {
+fn create_pieces(mut commands: Commands, meshes: Res<PieceMeshes>, materials: Res<PieceMaterials>) {
     spawn_side(
         &mut commands,
         &meshes,
@@ -563,127 +558,44 @@ fn spawn_side(
     let back_row = colour.starting_back_row();
     let front_row = colour.starting_front_row();
 
-    spawn_rook(
-        commands,
-        material.clone(),
-        meshes.rook.clone(),
-        colour,
-        (back_row, 0),
-    );
-    spawn_knight(
-        commands,
-        material.clone(),
-        meshes.knight_base.clone(),
-        meshes.knight.clone(),
-        colour,
-        (back_row, 1),
-    );
-    spawn_bishop(
-        commands,
-        material.clone(),
-        meshes.bishop.clone(),
-        colour,
-        (back_row, 2),
-    );
-    spawn_queen(
-        commands,
-        material.clone(),
-        meshes.queen.clone(),
-        colour,
-        (back_row, 3),
-    );
-    spawn_king(
-        commands,
-        material.clone(),
-        meshes.king.clone(),
-        meshes.king_cross.clone(),
-        colour,
-        (back_row, 4),
-    );
-    spawn_bishop(
-        commands,
-        material.clone(),
-        meshes.bishop.clone(),
-        colour,
-        (back_row, 5),
-    );
-    spawn_knight(
-        commands,
-        material.clone(),
-        meshes.knight_base.clone(),
-        meshes.knight.clone(),
-        colour,
-        (back_row, 6),
-    );
-    spawn_rook(
-        commands,
-        material.clone(),
-        meshes.rook.clone(),
-        colour,
-        (back_row, 7),
-    );
-
-    (0..=7).into_iter().for_each(|idx| {
-        spawn_pawn(
+    [
+        PieceKind::Rook,
+        PieceKind::Knight,
+        PieceKind::Bishop,
+        PieceKind::Queen,
+        PieceKind::King,
+        PieceKind::Bishop,
+        PieceKind::Knight,
+        PieceKind::Rook,
+    ].into_iter().enumerate().for_each(|(field, kind)| {
+        spawn_piece(
             commands,
             material.clone(),
-            meshes.pawn.clone(),
+            meshes.get(kind),
             colour,
+            kind,
+            (back_row, field as u8),
+        );
+    });
+
+    (0..=7).for_each(|idx| {
+        spawn_piece(
+            commands,
+            material.clone(),
+            meshes.get(PieceKind::Pawn),
+            colour,
+            PieceKind::Pawn,
             (front_row, idx),
-        )
-    })
+        );
+    });
 }
 
-fn spawn_king(
+fn spawn_piece(
     commands: &mut Commands,
     material: Handle<StandardMaterial>,
-    king: Handle<Mesh>,
-    king_cross: Handle<Mesh>,
+    mesh: Handle<Mesh>,
     colour: PieceColour,
-    (x, y): (u8, u8),
-) {
-    commands
-        .spawn_bundle(PbrBundle {
-            transform: place_on_square(colour, x, y),
-            ..Default::default()
-        })
-        .insert(Piece {
-            colour,
-            kind: PieceKind::King,
-            x,
-            y,
-        })
-        .with_children(|parent| {
-            parent.spawn_bundle(PbrBundle {
-                mesh: king.clone(),
-                material: material.clone(),
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0.0, -1.9));
-                    transform.apply_non_uniform_scale(Vec3::new(0.2, 0.2, 0.2));
-                    transform
-                },
-                ..Default::default()
-            });
-
-            parent.spawn_bundle(PbrBundle {
-                mesh: king_cross.clone(),
-                material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0.0, -1.9));
-                    transform.apply_non_uniform_scale(Vec3::new(0.2, 0.2, 0.2));
-                    transform
-                },
-                ..Default::default()
-            });
-        });
-}
-
-fn spawn_knight(
-    commands: &mut Commands,
-    material: Handle<StandardMaterial>,
-    knight_base: Handle<Mesh>,
-    knight: Handle<Mesh>,
-    colour: PieceColour,
+    kind: PieceKind,
     (x, y): (u8, u8),
 ) -> Entity {
     commands
@@ -691,170 +603,15 @@ fn spawn_knight(
             transform: place_on_square(colour, x, y),
             ..Default::default()
         })
-        .insert(Piece {
-            colour,
-            kind: PieceKind::Knight,
-            x,
-            y,
-        })
+        .insert(Piece { colour, kind, x, y })
         .with_children(|parent| {
             parent.spawn_bundle(PbrBundle {
-                mesh: knight_base,
-                material: material.clone(),
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0.0, 0.9));
-                    transform.apply_non_uniform_scale(Vec3::new(0.2, 0.2, 0.2));
-                    transform
-                },
-                ..Default::default()
-            });
-
-            parent.spawn_bundle(PbrBundle {
-                mesh: knight,
+                mesh,
                 material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0.0, 0.9));
-                    transform.apply_non_uniform_scale(Vec3::new(0.2, 0.2, 0.2));
-                    transform
-                },
                 ..Default::default()
             });
         })
         .id()
-}
-
-// TODO make spawn functions take PieceMaterials and PieceMeshes instead
-fn spawn_queen(
-    commands: &mut Commands,
-    material: Handle<StandardMaterial>,
-    queen: Handle<Mesh>,
-    colour: PieceColour,
-    (x, y): (u8, u8),
-) -> Entity {
-    commands
-        .spawn_bundle(PbrBundle {
-            transform: place_on_square(colour, x, y),
-            ..Default::default()
-        })
-        .insert(Piece {
-            colour,
-            kind: PieceKind::Queen,
-            x,
-            y,
-        })
-        .with_children(|parent| {
-            parent.spawn_bundle(PbrBundle {
-                mesh: queen,
-                material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0.0, -0.95));
-                    transform.apply_non_uniform_scale(Vec3::new(0.2, 0.2, 0.2));
-                    transform
-                },
-                ..Default::default()
-            });
-        })
-        .id()
-}
-
-fn spawn_bishop(
-    commands: &mut Commands,
-    material: Handle<StandardMaterial>,
-    bishop: Handle<Mesh>,
-    colour: PieceColour,
-    (x, y): (u8, u8),
-) -> Entity {
-    commands
-        .spawn_bundle(PbrBundle {
-            transform: place_on_square(colour, x, y),
-            ..Default::default()
-        })
-        .insert(Piece {
-            colour,
-            kind: PieceKind::Bishop,
-            x,
-            y,
-        })
-        .with_children(|parent| {
-            parent.spawn_bundle(PbrBundle {
-                mesh: bishop,
-                material,
-                transform: {
-                    // FIXME wrong direction because of rotation (black side)
-                    let mut transform = Transform::from_translation(Vec3::new(-0.1, 0.0, 0.0));
-                    transform.apply_non_uniform_scale(Vec3::new(0.2, 0.2, 0.2));
-                    transform.rotate(Quat::from_rotation_y(-FRAC_PI_2));
-                    transform
-                },
-                ..Default::default()
-            });
-        })
-        .id()
-}
-
-fn spawn_rook(
-    commands: &mut Commands,
-    material: Handle<StandardMaterial>,
-    rook: Handle<Mesh>,
-    colour: PieceColour,
-    (x, y): (u8, u8),
-) -> Entity {
-    commands
-        .spawn_bundle(PbrBundle {
-            transform: place_on_square(colour, x, y),
-            ..Default::default()
-        })
-        .insert(Piece {
-            colour,
-            kind: PieceKind::Rook,
-            x,
-            y,
-        })
-        .with_children(|parent| {
-            parent.spawn_bundle(PbrBundle {
-                mesh: rook,
-                material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.1, 0.0, 1.8));
-                    transform.apply_non_uniform_scale(Vec3::new(0.2, 0.2, 0.2));
-                    transform
-                },
-                ..Default::default()
-            });
-        })
-        .id()
-}
-
-fn spawn_pawn(
-    commands: &mut Commands,
-    material: Handle<StandardMaterial>,
-    pawn: Handle<Mesh>,
-    colour: PieceColour,
-    (x, y): (u8, u8),
-) {
-    commands
-        .spawn_bundle(PbrBundle {
-            transform: place_on_square(colour, x, y),
-            ..Default::default()
-        })
-        .insert(Piece {
-            colour,
-            kind: PieceKind::Pawn,
-            x,
-            y,
-        })
-        .with_children(|parent| {
-            parent.spawn_bundle(PbrBundle {
-                mesh: pawn,
-                material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0.0, 2.6));
-                    transform.apply_non_uniform_scale(Vec3::new(0.2, 0.2, 0.2));
-                    transform
-                },
-                ..Default::default()
-            });
-        });
 }
 
 fn promote_pawn_at_final_rank(
@@ -915,72 +672,68 @@ fn promote_pawn_at_final_rank(
     let (x, y) = (piece.x, piece.y);
     commands.entity(entity).despawn_recursive();
 
-    let material = materials.get(turn.0);
-    let new_entity = match new_kind {
-        PieceKind::Queen => spawn_queen(
-            &mut commands,
-            material,
-            meshes.queen.clone(),
-            turn.0,
-            (x, y),
-        ),
-        PieceKind::Bishop => spawn_bishop(
-            &mut commands,
-            material,
-            meshes.bishop.clone(),
-            turn.0,
-            (x, y),
-        ),
-        PieceKind::Knight => spawn_knight(
-            &mut commands,
-            material,
-            meshes.knight_base.clone(),
-            meshes.knight.clone(),
-            turn.0,
-            (x, y),
-        ),
-        PieceKind::Rook => spawn_rook(&mut commands, material, meshes.rook.clone(), turn.0, (x, y)),
-        _ => panic!("promoted to invalid piece kind {:?}", new_kind),
-    };
+    let new_entity = spawn_piece(
+        &mut commands,
+        materials.get(turn.0),
+        meshes.get(new_kind),
+        turn.0,
+        new_kind,
+        (x, y),
+    );
     promoted_pawn.0 = Some(new_entity);
 }
 
 fn place_on_square(colour: PieceColour, x: u8, y: u8) -> Transform {
+    // field/rank 0..7 -> x/y -3..4
+    let (x, y) = (x as i8 - 3, y as i8 - 3);
+    let square_size = 1.0;
     let angle = if colour == PieceColour::Black {
         PI
     } else {
         0.0
     };
 
+    let scale = Transform::from_scale(Vec3::new(15.0, 15.0, 15.0));
     let rotation = Transform::from_rotation(Quat::from_rotation_y(angle));
-    let translation = Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32));
 
-    translation * rotation
+    let base_translation = Transform::from_translation(Vec3::new(-0.5, 0.0, -0.5));
+    let translation = Transform::from_translation(Vec3::new(y as f32, 0.0, x as f32) / square_size);
+
+    translation * base_translation * rotation * scale
 }
 
 struct PieceMeshes {
     king: Handle<Mesh>,
-    king_cross: Handle<Mesh>,
     pawn: Handle<Mesh>,
-    knight_base: Handle<Mesh>,
     knight: Handle<Mesh>,
     rook: Handle<Mesh>,
     bishop: Handle<Mesh>,
     queen: Handle<Mesh>,
 }
 
+impl PieceMeshes {
+    pub fn get(&self, kind: PieceKind) -> Handle<Mesh> {
+        match kind {
+            PieceKind::King => self.king.clone(),
+            PieceKind::Queen => self.queen.clone(),
+            PieceKind::Bishop => self.bishop.clone(),
+            PieceKind::Knight => self.knight.clone(),
+            PieceKind::Rook => self.rook.clone(),
+            PieceKind::Pawn => self.pawn.clone(),
+        }
+    }
+}
+
 impl FromWorld for PieceMeshes {
     fn from_world(world: &mut World) -> Self {
         let assets = world.get_resource::<AssetServer>().unwrap();
         Self {
-            king: assets.load("meshes/pieces.glb#Mesh0/Primitive0"),
-            king_cross: assets.load("meshes/pieces.glb#Mesh1/Primitive0"),
-            pawn: assets.load("meshes/pieces.glb#Mesh2/Primitive0"),
-            knight_base: assets.load("meshes/pieces.glb#Mesh3/Primitive0"),
-            knight: assets.load("meshes/pieces.glb#Mesh4/Primitive0"),
-            rook: assets.load("meshes/pieces.glb#Mesh5/Primitive0"),
-            bishop: assets.load("meshes/pieces.glb#Mesh6/Primitive0"),
-            queen: assets.load("meshes/pieces.glb#Mesh7/Primitive0"),
+            king: assets.load("meshes/chess pieces.glb#Mesh0/Primitive0"),
+            pawn: assets.load("meshes/chess pieces.glb#Mesh1/Primitive0"),
+            knight: assets.load("meshes/chess pieces.glb#Mesh2/Primitive0"),
+            rook: assets.load("meshes/chess pieces.glb#Mesh3/Primitive0"),
+            bishop: assets.load("meshes/chess pieces.glb#Mesh4/Primitive0"),
+            queen: assets.load("meshes/chess pieces.glb#Mesh5/Primitive0"),
         }
     }
 }

@@ -3,6 +3,7 @@
 #![feature(let_else)]
 #![feature(format_args_capture)]
 #![feature(bool_to_option)]
+#![feature(destructuring_assignment)]
 
 #[cfg(test)]
 mod tests;

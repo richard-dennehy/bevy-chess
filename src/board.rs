@@ -180,9 +180,20 @@ impl AllValidMoves {
     }
 }
 
-pub struct MovePiece {
-    pub target_x: f32,
-    pub target_y: f32,
+pub struct MovePiece(Vec3);
+
+impl MovePiece {
+    pub fn new((x, y): (u8, u8)) -> Self {
+        Self(board_space_to_world_space((x, y)))
+    }
+
+    pub fn world_space_target(&self) -> Vec3 {
+        self.0
+    }
+
+    pub fn board_space_target(&self) -> (u8, u8) {
+        world_space_to_board_space(self.0)
+    }
 }
 
 struct HighlightedSquare {
@@ -237,6 +248,15 @@ impl PlayerTurn {
     }
 }
 
+// TODO should probably just use Square basically everywhere instead of (u8, u8)
+pub fn board_space_to_world_space((x, y): (u8, u8)) -> Vec3 {
+    (y as f32 - 3.5, 0.0, x as f32 - 3.5).into()
+}
+
+pub fn world_space_to_board_space(translation: Vec3) -> (u8, u8) {
+    ((translation.z + 3.5).round() as u8, (translation.x + 3.5).round() as u8)
+}
+
 fn create_board(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -247,11 +267,12 @@ fn create_board(
     (0..8).for_each(|x| {
         (0..8).for_each(|y| {
             let square = Square { x, y };
+
             commands
                 .spawn_bundle(PbrBundle {
                     mesh: mesh.clone(),
                     material: materials.none.clone(),
-                    transform: Transform::from_translation(Vec3::new(x as f32, 0.0, y as f32)),
+                    transform: Transform::from_translation(board_space_to_world_space((x, y))),
                     visible: Visible {
                         is_transparent: true,
                         is_visible: true,
@@ -264,7 +285,6 @@ fn create_board(
     })
 }
 
-// fixme this is highlighting the selected piece as well as its valid moves
 fn colour_squares(
     mut highlighted_square: ResMut<Option<HighlightedSquare>>,
     turn: Res<PlayerTurn>,
@@ -493,15 +513,9 @@ pub fn move_piece(
                     kingside,
                 } = valid_move.kind
                 {
-                    commands.entity(piece_id).insert(MovePiece {
-                        target_x: square.x as f32,
-                        target_y: king_target_y as f32,
-                    });
+                    commands.entity(piece_id).insert(MovePiece::new((square.x, king_target_y)));
 
-                    commands.entity(rook_id).insert(MovePiece {
-                        target_x: square.x as f32,
-                        target_y: rook_target_y as f32,
-                    });
+                    commands.entity(rook_id).insert(MovePiece::new((square.x, rook_target_y)));
 
                     if kingside {
                         castling_data.kingside_rook_moved = true;
@@ -543,10 +557,7 @@ pub fn move_piece(
                     commands.entity(target_entity).insert(Taken);
                 });
 
-            commands.entity(piece_id).insert(MovePiece {
-                target_x: square.x as f32,
-                target_y: square.y as f32,
-            });
+            commands.entity(piece_id).insert(MovePiece::new((square.x, square.y)));
 
             game_state.set(GameState::MovingPiece).unwrap();
         } else {

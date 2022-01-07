@@ -9,4 +9,3 @@
  - Reduce the size of the square highlights
  - Split bevy systems from generic logic
  - Create a proper texture for the chessboard (blender nodes material doesn't appear to import/export properly)
- - Fix transforms i.e. chessboard shouldn't need any transforms applied, everything else should be appropriately scaled
