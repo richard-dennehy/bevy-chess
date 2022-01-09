@@ -1,4 +1,4 @@
-use crate::board::{AllValidMoves, BoardState, SpecialMoveData};
+use crate::board::{AllValidMoves, BoardState, SpecialMoveData, Square};
 use crate::pieces::{Piece, PieceColour, PieceKind, PiecePath};
 use bevy::prelude::Entity;
 use bevy::utils::HashMap;
@@ -148,16 +148,16 @@ impl AllPotentialMoves {
         let _ = self.0.insert(entity, potential_path);
     }
 
-    fn can_reach(&self, entity: Entity, x: u8, y: u8) -> bool {
-        self.potential_path_to(entity, x, y)
+    fn can_reach(&self, entity: Entity, square: Square) -> bool {
+        self.potential_path_to(entity, square)
             .map(|path| path.obstructions().is_empty())
             .unwrap_or(false)
     }
 
-    fn potential_path_to(&self, entity: Entity, x: u8, y: u8) -> Option<PiecePath> {
+    fn potential_path_to(&self, entity: Entity, square: Square) -> Option<PiecePath> {
         self.get(entity)
             .iter()
-            .find_map(|path| path.truncate_to(x, y))
+            .find_map(|path| path.truncate_to(square))
     }
 }
 
@@ -220,8 +220,9 @@ impl<'game> MoveCalculator<'game> {
         if let Some(pawn_double_step) = &self.special_move_data.last_pawn_double_step {
             let find_pawn_in_column = |offset: i8| {
                 self.player_pieces.iter().find_map(|(entity, piece)| {
+                    // FIXME this probably needs to check rank/x as well
                     (piece.kind == PieceKind::Pawn
-                        && piece.y == (pawn_double_step.y as i8 + offset) as u8
+                        && piece.y == (pawn_double_step.square.y_file as i8 + offset) as u8
                         && piece.colour == self.turn)
                         .then(|| {
                             let direction = piece.colour.pawn_direction();
@@ -258,15 +259,15 @@ impl<'game> MoveCalculator<'game> {
             .into_iter()
             .flat_map(PiecePath::legal_path)
             .filter(|king_move| {
-                let (x, y) = (king_move.x, king_move.y);
+                let target_square = Square::new(king_move.x, king_move.y);
 
                 let attacked = self.opposite_pieces.iter().any(|(entity, piece)| {
                     // check that taking the piece on the square doesn't put the king in check
-                    if self.board_state.get(x, y).is_some() {
+                    if self.board_state.get(target_square).is_some() {
                         potential_moves.get(*entity).iter().any(|path| {
                             path.obstructions()
                                 .first()
-                                .map(|obstruction| obstruction.x == x && obstruction.y == y)
+                                .map(|obstruction| obstruction.x == target_square.x_rank && obstruction.y == target_square.y_file)
                                 .unwrap_or(false)
                         })
                     } else if piece.kind == PieceKind::Pawn {
@@ -283,7 +284,7 @@ impl<'game> MoveCalculator<'game> {
                             || will_attack_king(&pawn_moves.attack_right)
                     } else {
                         // check that the square isn't directly attacked, or that the king isn't currently blocking that square from being attacked
-                        let Some(path) = potential_moves.potential_path_to(*entity, x, y) else { return false };
+                        let Some(path) = potential_moves.potential_path_to(*entity, target_square) else { return false };
                         path.obstructions().is_empty() || (path.obstructions().len() == 1 && path.obstructions()[0].x == self.king.x && path.obstructions()[0].y == self.king.y)
                     }
                 });
@@ -301,7 +302,7 @@ impl<'game> MoveCalculator<'game> {
             .iter()
             .filter_map(|(entity, piece)| {
                 let legal_path = potential_moves
-                    .potential_path_to(*entity, self.king.x, self.king.y)?
+                    .potential_path_to(*entity, (self.king.x, self.king.y).into())?
                     .legal_path_vec();
 
                 legal_path
@@ -327,8 +328,8 @@ impl<'game> MoveCalculator<'game> {
                         potential_threats.iter().all(|(threat, path_to_king)| {
                             // note: at this point, can assume that the path has exactly one obstruction,
                             // and if this piece is in the path, it is the obstruction
-                            let currently_in_path = path_to_king.contains(piece.x, piece.y);
-                            let stays_in_path = path_to_king.contains(piece_move.x, piece_move.y);
+                            let currently_in_path = path_to_king.contains((piece.x, piece.y).into());
+                            let stays_in_path = path_to_king.contains((piece_move.x, piece_move.y).into());
                             let captures_threat =
                                 piece_move.x == threat.x && piece_move.y == threat.y;
 
@@ -348,7 +349,7 @@ impl<'game> MoveCalculator<'game> {
         self.opposite_pieces
             .iter()
             .filter_map(|(entity, piece)| {
-                let path = potential_moves.potential_path_to(*entity, self.king.x, self.king.y)?;
+                let path = potential_moves.potential_path_to(*entity, (self.king.x, self.king.y).into())?;
 
                 let obstructions = path
                     .obstructions()
@@ -409,14 +410,14 @@ impl<'game> MoveCalculator<'game> {
 
     fn calculate_castling_moves(&self, potential_moves: &AllPotentialMoves) -> Moves {
         let king_does_not_pass_through_attacked_square = |dir: i8| {
-            let first_move = (self.king.x, ((self.king.y as i8) + dir) as u8);
-            let second_move = (self.king.x, ((self.king.y as i8) + (dir * 2)) as u8);
+            let first_move = Square::new(self.king.x, ((self.king.y as i8) + dir) as u8);
+            let second_move = Square::new(self.king.x, ((self.king.y as i8) + (dir * 2)) as u8);
 
-            self.board_state.get(first_move.0, first_move.1).is_none()
-                && self.board_state.get(second_move.0, second_move.1).is_none()
+            self.board_state.get(first_move).is_none()
+                && self.board_state.get(second_move).is_none()
                 && self.opposite_pieces.iter().all(|(entity, _)| {
-                    !(potential_moves.can_reach(*entity, first_move.0, first_move.1)
-                        || potential_moves.can_reach(*entity, second_move.0, second_move.1))
+                    !(potential_moves.can_reach(*entity, first_move)
+                        || potential_moves.can_reach(*entity, second_move))
                 })
         };
 
@@ -425,12 +426,12 @@ impl<'game> MoveCalculator<'game> {
 
         if !castling_data.king_moved {
             if !castling_data.queenside_rook_moved {
-                let passed_through = (self.king.x, self.king.y - 3);
+                let passed_through = Square::new(self.king.x, self.king.y - 3);
 
                 if king_does_not_pass_through_attacked_square(-1)
                     && self
                         .board_state
-                        .get(passed_through.0, passed_through.1)
+                        .get(passed_through)
                         .is_none()
                 {
                     let rook_id = self

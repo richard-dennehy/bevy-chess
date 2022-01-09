@@ -1,4 +1,4 @@
-use crate::board::{BoardState, GameState, MovePiece, PlayerTurn, PromotedPawn};
+use crate::board::{BoardState, GameState, MovePiece, PlayerTurn, PromotedPawn, Square};
 use crate::moves_calculator::{Move, PotentialMove};
 use bevy::prelude::*;
 use std::f32::consts::PI;
@@ -194,14 +194,14 @@ impl PiecePath {
             .collect()
     }
 
-    pub fn contains(&self, x: u8, y: u8) -> bool {
+    pub fn contains(&self, square: Square) -> bool {
         self.potential_moves
             .iter()
-            .any(|potential| potential.move_.x == x && potential.move_.y == y)
+            .any(|potential| potential.move_.x == square.x_rank && potential.move_.y == square.y_file)
     }
 
-    pub fn truncate_to(&self, x: u8, y: u8) -> Option<Self> {
-        if self.contains(x, y) {
+    pub fn truncate_to(&self, square: Square) -> Option<Self> {
+        if self.contains(square) {
             Some(PiecePath {
                 potential_moves: self
                     .potential_moves
@@ -212,7 +212,7 @@ impl PiecePath {
                             return None;
                         };
 
-                        *done = p_move.move_.x == x && p_move.move_.y == y;
+                        *done = p_move.move_.x == square.x_rank && p_move.move_.y == square.y_file;
                         Some(p_move)
                     })
                     .copied()
@@ -237,7 +237,7 @@ impl Piece {
     pub fn valid_moves(&self, board: &BoardState) -> Vec<PiecePath> {
         let potential_move = |(x, y): (u8, u8)| PotentialMove {
             move_: Move::standard((x, y)),
-            blocked_by: *board.get(x, y),
+            blocked_by: *board.get((x, y).into()),
         };
 
         let up = || {
@@ -421,21 +421,21 @@ impl Piece {
             let move_one = (x + direction) as u8;
             let move_two = (x + (2 * direction)) as u8;
 
-            let advance_one = board.get(move_one, y).is_none().then_some(PotentialMove {
+            let advance_one = board.get((move_one, y).into()).is_none().then_some(PotentialMove {
                 move_: Move::standard((move_one, y)),
                 blocked_by: None,
             });
 
             let advance_two = (x == starting_row
-                && board.get(move_one, y).is_none()
-                && board.get(move_two, y).is_none())
+                && board.get((move_one, y).into()).is_none()
+                && board.get((move_two, y).into()).is_none())
             .then_some(PotentialMove {
                 move_: Move::pawn_double_step(move_two, y),
                 blocked_by: None,
             });
 
             let left_diagonal_occupied =
-                || board.get(move_one, y - 1).contains(&self.colour.opposite());
+                || board.get((move_one, y - 1).into()).contains(&self.colour.opposite());
             let attack_left =
                 (y != 0 && (attack_empty_squares || left_diagonal_occupied())).then(|| {
                     PotentialMove {
@@ -445,7 +445,7 @@ impl Piece {
                 });
 
             let right_diagonal_occupied =
-                || board.get(move_one, y + 1).contains(&self.colour.opposite());
+                || board.get((move_one, y + 1).into()).contains(&self.colour.opposite());
             let attack_right = (y != 7 && (attack_empty_squares || right_diagonal_occupied()))
                 .then(|| PotentialMove {
                     move_: Move::standard((move_one, y + 1)),
@@ -478,7 +478,7 @@ fn move_pieces(
         query
             .iter_mut()
             .any(|(piece_entity, move_piece, mut piece, mut transform)| {
-                let direction = move_piece.world_space_target()
+                let direction = move_piece.target_translation()
                     - transform.translation;
 
                 if direction.length() > f32::EPSILON * 2.0 {
@@ -491,7 +491,9 @@ fn move_pieces(
 
                     true
                 } else {
-                    (piece.x, piece.y) = move_piece.board_space_target();
+                    let target = move_piece.target_square();
+                    piece.x = target.x_rank;
+                    piece.y = target.y_file;
 
                     commands.entity(piece_entity).remove::<MovePiece>();
 
@@ -567,14 +569,14 @@ fn spawn_side(
         PieceKind::Bishop,
         PieceKind::Knight,
         PieceKind::Rook,
-    ].into_iter().enumerate().for_each(|(field, kind)| {
+    ].into_iter().enumerate().for_each(|(file, kind)| {
         spawn_piece(
             commands,
             material.clone(),
             meshes.get(kind),
             colour,
             kind,
-            (back_row, field as u8),
+            (back_row, file as u8),
         );
     });
 

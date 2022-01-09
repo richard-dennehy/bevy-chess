@@ -960,8 +960,7 @@ mod board_tests {
                 expected_state: GameState,
                 new_state: GameState,
             );
-            fn square(&mut self, x: u8, y: u8) -> Entity;
-            fn move_piece(&mut self, piece_id: Entity, x: u8, y: u8);
+            fn move_piece(&mut self, piece_id: Entity, square: Square);
         }
 
         impl WorldTestUtils for World {
@@ -979,21 +978,14 @@ mod board_tests {
                 state.overwrite_set(new_state).unwrap();
             }
 
-            fn square(&mut self, x: u8, y: u8) -> Entity {
-                self.query::<(Entity, &Square)>()
-                    .iter(self)
-                    .find_map(|(entity, square)| (square.x == x && square.y == y).then(|| entity))
-                    .unwrap()
-            }
-
-            fn move_piece(&mut self, piece_id: Entity, x: u8, y: u8) {
+            fn move_piece(&mut self, piece_id: Entity, square: Square) {
                 let all_valid_moves = self.get_resource::<AllValidMoves>().unwrap();
                 let piece_moves = all_valid_moves.get(piece_id);
                 assert!(
-                    all_valid_moves.contains(piece_id, x, y),
+                    all_valid_moves.contains(piece_id, square),
                     "({}, {}) is not a valid move; valid moves: {:?}",
-                    x,
-                    y,
+                    square.x_rank,
+                    square.y_file,
                     piece_moves
                 );
 
@@ -1010,7 +1002,10 @@ mod board_tests {
                     GameState::TargetSquareSelected,
                 );
                 self.overwrite_resource(SelectedPiece(Some(piece_id)));
-                let square = self.square(x, y);
+                let square = self.query::<(Entity, &Square)>()
+                    .iter(self)
+                    .find_map(|(entity, s)| (square == *s).then(|| entity))
+                    .unwrap();
                 self.overwrite_resource(SelectedSquare(Some(square)));
             }
         }
@@ -1028,7 +1023,7 @@ mod board_tests {
 
             (0..8).for_each(|x| {
                 (0..8).for_each(|y| {
-                    world.spawn().insert(Square { x, y });
+                    world.spawn().insert(Square { x_rank: x, y_file: y });
                 })
             });
 
@@ -1060,8 +1055,8 @@ mod board_tests {
             assert_eq!(state.current(), &GameState::MovingPiece);
 
             query.for_each_mut(|(piece_entity, move_piece, mut piece)| {
-                piece.x = move_piece.target_x as u8;
-                piece.y = move_piece.target_y as u8;
+                piece.x = move_piece.target_square().x_rank;
+                piece.y = move_piece.target_square().y_file;
 
                 commands.entity(piece_entity).remove::<MovePiece>();
             });
@@ -1122,7 +1117,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            world.move_piece(black_pawn, 4, 4);
+            world.move_piece(black_pawn, (4, 4).into());
             stage.run(&mut world);
 
             let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
@@ -1130,8 +1125,7 @@ mod board_tests {
                 &special_moves.last_pawn_double_step,
                 &Some(LastPawnDoubleStep {
                     pawn_id: black_pawn,
-                    x: 4,
-                    y: 4,
+                    square: (4, 4).into(),
                 })
             );
 
@@ -1142,7 +1136,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            world.move_piece(white_pawn, 5, 4);
+            world.move_piece(white_pawn, (5, 4).into());
             stage.run(&mut world);
 
             assert!(world
@@ -1205,7 +1199,7 @@ mod board_tests {
             stage.run(&mut world);
 
             // turn 0 move black pawn 2 steps forward
-            world.move_piece(black_pawn, 4, 4);
+            world.move_piece(black_pawn, (4, 4).into());
             stage.run(&mut world);
 
             let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
@@ -1213,8 +1207,7 @@ mod board_tests {
                 &special_moves.last_pawn_double_step,
                 &Some(LastPawnDoubleStep {
                     pawn_id: black_pawn,
-                    x: 4,
-                    y: 4,
+                    square: (4, 4).into()
                 })
             );
 
@@ -1225,10 +1218,10 @@ mod board_tests {
                 &vec![Move::standard((5, 3)), Move::en_passant(5, 4, black_pawn)]
             );
 
-            world.move_piece(white_king, 1, 4);
+            world.move_piece(white_king, (1, 4).into());
             stage.run(&mut world);
 
-            world.move_piece(black_king, 6, 4);
+            world.move_piece(black_king, (6, 4).into());
             stage.run(&mut world);
 
             // check white pawn can't still move en passant
@@ -1312,7 +1305,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            world.move_piece(black_pawn, 4, 4);
+            world.move_piece(black_pawn, (4, 4).into());
             stage.run(&mut world);
 
             let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
@@ -1320,8 +1313,7 @@ mod board_tests {
                 &special_moves.last_pawn_double_step,
                 &Some(LastPawnDoubleStep {
                     pawn_id: black_pawn,
-                    x: 4,
-                    y: 4,
+                    square: (4, 4).into()
                 })
             );
 
@@ -1414,7 +1406,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            world.move_piece(black_pawn, 4, 4);
+            world.move_piece(black_pawn, (4, 4).into());
             stage.run(&mut world);
 
             let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
@@ -1422,8 +1414,7 @@ mod board_tests {
                 &special_moves.last_pawn_double_step,
                 &Some(LastPawnDoubleStep {
                     pawn_id: black_pawn,
-                    x: 4,
-                    y: 4,
+                    square: (4, 4).into()
                 })
             );
 
@@ -1495,7 +1486,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            world.move_piece(black_pawn, 4, 4);
+            world.move_piece(black_pawn, (4, 4).into());
             stage.run(&mut world);
 
             let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
@@ -1503,8 +1494,7 @@ mod board_tests {
                 &special_moves.last_pawn_double_step,
                 &Some(LastPawnDoubleStep {
                     pawn_id: black_pawn,
-                    x: 4,
-                    y: 4,
+                    square: (4, 4).into()
                 })
             );
 
@@ -1556,7 +1546,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            world.move_piece(black_king, 7, 0);
+            world.move_piece(black_king, (7, 0).into());
             stage.run(&mut world);
 
             let black_king = world.get::<Piece>(black_king).unwrap();
@@ -1607,7 +1597,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            world.move_piece(white_king, 0, 7);
+            world.move_piece(white_king, (0, 7).into());
             stage.run(&mut world);
 
             let white_king = world.get::<Piece>(white_king).unwrap();
@@ -1684,10 +1674,10 @@ mod board_tests {
                 ]
             );
 
-            world.move_piece(white_king, 0, 5);
+            world.move_piece(white_king, (0, 5).into());
             stage.run(&mut world);
 
-            world.move_piece(black_king, 7, 5);
+            world.move_piece(black_king, (7, 5).into());
             stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
@@ -1702,10 +1692,10 @@ mod board_tests {
                 ]
             );
 
-            world.move_piece(white_king, 0, 4);
+            world.move_piece(white_king, (0, 4).into());
             stage.run(&mut world);
 
-            world.move_piece(black_king, 7, 4);
+            world.move_piece(black_king, (7, 4).into());
             stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
@@ -1786,10 +1776,10 @@ mod board_tests {
                 ]
             );
 
-            world.move_piece(white_kingside_rook, 1, 7);
+            world.move_piece(white_kingside_rook, (1, 7).into());
             stage.run(&mut world);
 
-            world.move_piece(black_king, 7, 5);
+            world.move_piece(black_king, (7, 5).into());
             stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
@@ -1805,10 +1795,10 @@ mod board_tests {
                 ]
             );
 
-            world.move_piece(white_kingside_rook, 0, 7);
+            world.move_piece(white_kingside_rook, (0, 7).into());
             stage.run(&mut world);
 
-            world.move_piece(black_king, 7, 4);
+            world.move_piece(black_king, (7, 4).into());
             stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
@@ -1890,10 +1880,10 @@ mod board_tests {
                 ]
             );
 
-            world.move_piece(white_queenside_rook, 1, 0);
+            world.move_piece(white_queenside_rook, (1, 0).into());
             stage.run(&mut world);
 
-            world.move_piece(black_king, 7, 5);
+            world.move_piece(black_king, (7, 5).into());
             stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
@@ -1909,10 +1899,10 @@ mod board_tests {
                 ]
             );
 
-            world.move_piece(white_queenside_rook, 0, 0);
+            world.move_piece(white_queenside_rook, (0, 0).into());
             stage.run(&mut world);
 
-            world.move_piece(black_king, 7, 4);
+            world.move_piece(black_king, (7, 4).into());
             stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
@@ -2109,7 +2099,7 @@ mod board_tests {
 
             stage.run(&mut world);
 
-            world.move_piece(black_knight, 0, 0);
+            world.move_piece(black_knight, (0, 0).into());
             stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();

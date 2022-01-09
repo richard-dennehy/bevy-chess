@@ -66,8 +66,8 @@ pub struct BoardState {
 }
 
 impl BoardState {
-    pub fn get(&self, x: u8, y: u8) -> &Option<PieceColour> {
-        &self.squares[(x * 8 + y) as usize]
+    pub fn get(&self, square: Square) -> &Option<PieceColour> {
+        &self.squares[(square.x_rank * 8 + square.y_file) as usize]
     }
 
     #[cfg(test)]
@@ -99,22 +99,43 @@ impl<'piece> FromIterator<&'piece Piece> for BoardState {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Square {
-    pub x: u8,
-    pub y: u8,
+    pub x_rank: u8,
+    pub y_file: u8,
 }
 
 impl Square {
-    // TODO maybe delete
-    pub fn is_white(&self) -> bool {
-        (self.x + self.y + 1) % 2 == 0
+    pub fn new(rank: u8, file: u8) -> Self {
+        assert!(rank <= 7 && file <= 7, "({}, {}) is out of bounds", rank, file);
+
+        Self {
+            x_rank: rank,
+            y_file: file,
+        }
+    }
+
+    pub fn from_translation(translation: Vec3) -> Self {
+        let rank = (translation.z + 3.5).round() as u8;
+        let file = (translation.x + 3.5).round() as u8;
+        Self { x_rank: rank, y_file: file }
+    }
+
+    pub fn to_translation(self) -> Vec3 {
+        (self.y_file as f32 - 3.5, 0.0, self.x_rank as f32 - 3.5).into()
+    }
+}
+
+impl From<(u8, u8)> for Square {
+    fn from((rank, file): (u8, u8)) -> Self {
+        Self::new(rank, file)
     }
 }
 
 pub struct Taken;
 
 #[derive(Default)]
+// TODO is it possible to pass around the actual Square rather than an Entity ID?
 pub struct SelectedSquare(pub Option<Entity>);
 #[derive(Default)]
 pub struct SelectedPiece(pub Option<Entity>);
@@ -124,8 +145,7 @@ pub struct PromotedPawn(pub Option<Entity>);
 #[derive(Debug, PartialEq)]
 pub struct LastPawnDoubleStep {
     pub pawn_id: Entity,
-    pub x: u8,
-    pub y: u8,
+    pub square: Square,
 }
 
 #[derive(Debug, Default)]
@@ -175,24 +195,24 @@ impl AllValidMoves {
         self.0.insert(piece_id, moves);
     }
 
-    pub fn contains(&self, piece_id: Entity, x: u8, y: u8) -> bool {
-        self.get(piece_id).iter().any(|m| m.x == x && m.y == y)
+    pub fn contains(&self, piece_id: Entity, square: Square) -> bool {
+        self.get(piece_id).iter().any(|m| m.x == square.x_rank && m.y == square.y_file)
     }
 }
 
 pub struct MovePiece(Vec3);
 
 impl MovePiece {
-    pub fn new((x, y): (u8, u8)) -> Self {
-        Self(board_space_to_world_space((x, y)))
+    pub fn new(square: Square) -> Self {
+        Self(square.to_translation())
     }
 
-    pub fn world_space_target(&self) -> Vec3 {
+    pub fn target_translation(&self) -> Vec3 {
         self.0
     }
 
-    pub fn board_space_target(&self) -> (u8, u8) {
-        world_space_to_board_space(self.0)
+    pub fn target_square(&self) -> Square {
+        Square::from_translation(self.0)
     }
 }
 
@@ -205,6 +225,7 @@ struct HighlightedSquare {
 pub enum GameState {
     // only exists to guarantee the "new turn" systems always run after resetting everything
     NewGame,
+
     NothingSelected,
     SquareSelected,
     PieceSelected,
@@ -248,15 +269,6 @@ impl PlayerTurn {
     }
 }
 
-// TODO should probably just use Square basically everywhere instead of (u8, u8)
-pub fn board_space_to_world_space((x, y): (u8, u8)) -> Vec3 {
-    (y as f32 - 3.5, 0.0, x as f32 - 3.5).into()
-}
-
-pub fn world_space_to_board_space(translation: Vec3) -> (u8, u8) {
-    ((translation.z + 3.5).round() as u8, (translation.x + 3.5).round() as u8)
-}
-
 fn create_board(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -264,15 +276,15 @@ fn create_board(
 ) {
     let mesh = meshes.add(Mesh::from(shape::Plane { size: 1.0 }));
 
-    (0..8).for_each(|x| {
-        (0..8).for_each(|y| {
-            let square = Square { x, y };
+    (0..8).for_each(|rank| {
+        (0..8).for_each(|file| {
+            let square = Square { x_rank: rank, y_file: file };
 
             commands
                 .spawn_bundle(PbrBundle {
                     mesh: mesh.clone(),
                     material: materials.none.clone(),
-                    transform: Transform::from_translation(board_space_to_world_space((x, y))),
+                    transform: Transform::from_translation(square.to_translation()),
                     visible: Visible {
                         is_transparent: true,
                         is_visible: true,
@@ -303,13 +315,13 @@ fn colour_squares(
         };
 
         if let Some(piece) = selected_piece.0 {
-            if valid_moves.contains(piece, square.x, square.y) {
+            if valid_moves.contains(piece, *square) {
                 *material = materials.valid_selection.clone();
                 return;
             };
         } else {
             let piece = pieces.iter().find(|(_, piece)| {
-                piece.x == square.x && piece.y == square.y && piece.colour == turn.0
+                piece.x == square.x_rank && piece.y == square.y_file && piece.colour == turn.0
             });
 
             if let Some((entity, _)) = piece {
@@ -324,7 +336,7 @@ fn colour_squares(
 
         if let Some(promoted) = promoted_pawn.0 {
             let piece = pieces.iter().find(|(entity, piece)| {
-                piece.x == square.x && piece.y == square.y && promoted == *entity
+                piece.x == square.x_rank && piece.y == square.y_file && promoted == *entity
             });
 
             if let Some(_) = piece {
@@ -453,7 +465,7 @@ fn select_piece(
 
     pieces
         .iter()
-        .find(|(_, piece)| piece.x == square.x && piece.y == square.y && piece.colour == turn.0)
+        .find(|(_, piece)| piece.x == square.x_rank && piece.y == square.y_file && piece.colour == turn.0)
         .map(|(entity, _)| {
             selected_piece.0 = Some(entity);
             game_state.set(GameState::PieceSelected).unwrap();
@@ -483,7 +495,7 @@ pub fn move_piece(
         let valid_moves = all_valid_moves.get(piece_id);
         let maybe_valid_move = valid_moves
             .into_iter()
-            .find(|m| m.x == square.x && m.y == square.y);
+            .find(|m| m.x == square.x_rank && m.y == square.y_file);
         if let Some(valid_move) = maybe_valid_move {
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
             let _ = special_move_data.last_pawn_double_step.take();
@@ -496,8 +508,7 @@ pub fn move_piece(
                         .last_pawn_double_step
                         .insert(LastPawnDoubleStep {
                             pawn_id: piece_id,
-                            x: square.x,
-                            y: square.y,
+                            square: *square
                         });
                 } else if valid_move.x == player_turn.0.final_row() {
                     promoted_pawn.0 = Some(piece_id);
@@ -513,9 +524,9 @@ pub fn move_piece(
                     kingside,
                 } = valid_move.kind
                 {
-                    commands.entity(piece_id).insert(MovePiece::new((square.x, king_target_y)));
+                    commands.entity(piece_id).insert(MovePiece::new((square.x_rank, king_target_y).into()));
 
-                    commands.entity(rook_id).insert(MovePiece::new((square.x, rook_target_y)));
+                    commands.entity(rook_id).insert(MovePiece::new((square.x_rank, rook_target_y).into()));
 
                     if kingside {
                         castling_data.kingside_rook_moved = true;
@@ -538,7 +549,7 @@ pub fn move_piece(
 
             pieces
                 .iter_mut()
-                .find(|(_, other)| other.x == square.x && other.y == square.y)
+                .find(|(_, other)| other.x == square.x_rank && other.y == square.y_file)
                 .map(|(target_entity, target_piece)| {
                     if target_piece.kind == PieceKind::Rook {
                         let other_player = player_turn.0.opposite();
@@ -557,7 +568,7 @@ pub fn move_piece(
                     commands.entity(target_entity).insert(Taken);
                 });
 
-            commands.entity(piece_id).insert(MovePiece::new((square.x, square.y)));
+            commands.entity(piece_id).insert(MovePiece::new(*square));
 
             game_state.set(GameState::MovingPiece).unwrap();
         } else {
