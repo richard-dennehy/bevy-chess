@@ -92,7 +92,7 @@ impl<'piece> FromIterator<&'piece Piece> for BoardState {
     fn from_iter<T: IntoIterator<Item = &'piece Piece>>(pieces: T) -> Self {
         let mut squares = [None; 64];
         pieces.into_iter().for_each(|piece| {
-            squares[(piece.x * 8 + piece.y) as usize] = Some(piece.colour);
+            squares[(piece.square.x_rank * 8 + piece.square.y_file) as usize] = Some(piece.colour);
         });
 
         Self { squares }
@@ -321,7 +321,7 @@ fn colour_squares(
             };
         } else {
             let piece = pieces.iter().find(|(_, piece)| {
-                piece.x == square.x_rank && piece.y == square.y_file && piece.colour == turn.0
+                piece.square == *square && piece.colour == turn.0
             });
 
             if let Some((entity, _)) = piece {
@@ -336,7 +336,7 @@ fn colour_squares(
 
         if let Some(promoted) = promoted_pawn.0 {
             let piece = pieces.iter().find(|(entity, piece)| {
-                piece.x == square.x_rank && piece.y == square.y_file && promoted == *entity
+                piece.square == *square && promoted == *entity
             });
 
             if let Some(_) = piece {
@@ -465,7 +465,7 @@ fn select_piece(
 
     pieces
         .iter()
-        .find(|(_, piece)| piece.x == square.x_rank && piece.y == square.y_file && piece.colour == turn.0)
+        .find(|(_, piece)| piece.square == *square && piece.colour == turn.0)
         .map(|(entity, _)| {
             selected_piece.0 = Some(entity);
             game_state.set(GameState::PieceSelected).unwrap();
@@ -510,7 +510,7 @@ pub fn move_piece(
                             pawn_id: piece_id,
                             square: *square
                         });
-                } else if valid_move.x == player_turn.0.final_row() {
+                } else if valid_move.x == player_turn.0.final_rank() {
                     promoted_pawn.0 = Some(piece_id);
                 }
             } else if piece.kind == PieceKind::King {
@@ -540,26 +540,26 @@ pub fn move_piece(
             } else if piece.kind == PieceKind::Rook {
                 let mut castling_data = special_move_data.castling_data_mut(player_turn.0);
 
-                if piece.y == 0 {
+                if piece.square.y_file == 0 {
                     castling_data.queenside_rook_moved = true;
-                } else if piece.y == 7 {
+                } else if piece.square.y_file == 7 {
                     castling_data.kingside_rook_moved = true;
                 }
             }
 
             pieces
                 .iter_mut()
-                .find(|(_, other)| other.x == square.x_rank && other.y == square.y_file)
+                .find(|(_, other)| other.square == *square)
                 .map(|(target_entity, target_piece)| {
                     if target_piece.kind == PieceKind::Rook {
                         let other_player = player_turn.0.opposite();
                         let mut castling_data = special_move_data.castling_data_mut(other_player);
 
-                        if target_piece.x == other_player.starting_back_row() && target_piece.y == 0
+                        if target_piece.square.x_rank == other_player.starting_back_rank() && target_piece.square.y_file == 0
                         {
                             castling_data.queenside_rook_moved = true;
-                        } else if target_piece.x == other_player.starting_back_row()
-                            && target_piece.y == 7
+                        } else if target_piece.square.x_rank == other_player.starting_back_rank()
+                            && target_piece.square.y_file == 7
                         {
                             castling_data.kingside_rook_moved = true;
                         }

@@ -18,8 +18,7 @@ mod board_tests {
             if colour == PieceColour::White {
                 (0..8)
                     .map(|idx| Piece {
-                        x: 1,
-                        y: idx,
+                        square: (1, idx).into(),
                         kind: PieceKind::Pawn,
                         colour,
                     })
@@ -27,8 +26,7 @@ mod board_tests {
             } else {
                 (0..8)
                     .map(|idx| Piece {
-                        x: 6,
-                        y: idx,
+                        square: (6, idx).into(),
                         kind: PieceKind::Pawn,
                         colour,
                     })
@@ -40,16 +38,14 @@ mod board_tests {
             .iter()
             .enumerate()
             .map(|(idx, kind)| Piece {
-                x: 0,
-                y: idx as _,
+                square: (0, idx as u8).into(),
                 colour: PieceColour::White,
                 kind: *kind,
             })
             .chain(front_row(PieceColour::White).into_iter())
             .chain(front_row(PieceColour::Black).into_iter())
             .chain(back_row.iter().enumerate().map(|(idx, kind)| Piece {
-                x: 7,
-                y: idx as _,
+                square: (7, idx as u8).into(),
                 colour: PieceColour::Black,
                 kind: *kind,
             }))
@@ -67,7 +63,7 @@ mod board_tests {
         use super::*;
         use crate::board::{
             calculate_all_moves, AllValidMoves, CastlingData, GameState, PlayerTurn,
-            SpecialMoveData,
+            SpecialMoveData, Square,
         };
         use crate::moves_calculator::Move;
         use bevy::prelude::*;
@@ -106,8 +102,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
@@ -115,8 +110,7 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
                 colour: PieceColour::White,
-                x: 5,
-                y: 3,
+                square: (5, 3).into(),
             });
 
             // add other pieces around King to restrict (but not totally block) movement that can't take the knight,
@@ -126,8 +120,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 5,
+                    square: (7, 5).into(),
                 })
                 .id();
 
@@ -136,8 +129,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Knight,
                     colour: PieceColour::Black,
-                    x: 6,
-                    y: 3,
+                    square: (6, 3).into(),
                 })
                 .id();
 
@@ -146,8 +138,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Queen,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 3,
+                    square: (7, 3).into(),
                 })
                 .id();
 
@@ -172,8 +163,7 @@ mod board_tests {
                     .insert(Piece {
                         kind: PieceKind::King,
                         colour: PieceColour::Black,
-                        x: 7,
-                        y: 4,
+                        square: (7, 4).into(),
                     })
                     .id(),
             );
@@ -182,8 +172,7 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
                 colour: PieceColour::White,
-                x: 5,
-                y: 3,
+                square: (5, 3).into(),
             });
 
             // pieces blocking the king but tragically unable to take the knight
@@ -194,8 +183,7 @@ mod board_tests {
                         .insert(Piece {
                             kind: PieceKind::Pawn,
                             colour: PieceColour::Black,
-                            x,
-                            y,
+                            square: Square::new(x, y),
                         })
                         .id(),
                 );
@@ -213,8 +201,7 @@ mod board_tests {
                     .insert(Piece {
                         kind: PieceKind::Rook,
                         colour: PieceColour::Black,
-                        x: 6,
-                        y: 4,
+                        square: (6, 4).into(),
                     })
                     .id(),
             );
@@ -250,8 +237,7 @@ mod board_tests {
                     .insert(Piece {
                         kind: PieceKind::King,
                         colour: PieceColour::Black,
-                        x: 7,
-                        y: 4,
+                        square: (7, 4).into(),
                     })
                     .id(),
             );
@@ -260,8 +246,7 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
                 colour: PieceColour::White,
-                x: 5,
-                y: 3,
+                square: (5, 3).into(),
             });
 
             let mut spawn_pawn = |x: u8, y: u8| {
@@ -270,8 +255,7 @@ mod board_tests {
                     .insert(Piece {
                         kind: PieceKind::Pawn,
                         colour: PieceColour::Black,
-                        x,
-                        y,
+                        square: Square::new(x, y),
                     })
                     .id()
             };
@@ -306,8 +290,7 @@ mod board_tests {
                     .insert(Piece {
                         kind: PieceKind::King,
                         colour: PieceColour::Black,
-                        x: 7,
-                        y: 4,
+                        square: (7, 4).into(),
                     })
                     .id(),
             );
@@ -316,16 +299,14 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
                 colour: PieceColour::White,
-                x: 5,
-                y: 3,
+                square: (5, 3).into(),
             });
 
             // also has king in check
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
                 colour: PieceColour::White,
-                x: 5,
-                y: 5,
+                square: (5, 5).into(),
             });
 
             let mut spawn_pawn = |x: u8, y: u8| {
@@ -334,8 +315,7 @@ mod board_tests {
                     .insert(Piece {
                         kind: PieceKind::Pawn,
                         colour: PieceColour::Black,
-                        x,
-                        y,
+                        square: Square::new(x, y),
                     })
                     .id()
             };
@@ -368,23 +348,20 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 0,
-                y: 3,
+                square: (0, 3).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 0,
-                y: 5,
+                square: (0, 5).into(),
             });
 
             update_stage.run(&mut world);
@@ -402,40 +379,34 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 3,
-                    y: 3,
+                    square: (3, 3).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Pawn,
                 colour: PieceColour::White,
-                x: 2,
-                y: 4,
+                square: (2, 4).into(),
             });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 7,
-                y: 4,
+                square: (7, 4).into(),
             });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 0,
-                y: 2,
+                square: (0, 2).into(),
             });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 4,
-                y: 0,
+                square: (4, 0).into(),
             });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 2,
-                y: 0,
+                square: (2, 0).into(),
             });
 
             update_stage.run(&mut world);
@@ -459,8 +430,7 @@ mod board_tests {
                     .insert(Piece {
                         kind: PieceKind::King,
                         colour: PieceColour::Black,
-                        x: 7,
-                        y: 4,
+                        square: (7, 4).into(),
                     })
                     .id(),
             );
@@ -469,8 +439,7 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::Bishop,
                 colour: PieceColour::White,
-                x: 5,
-                y: 2,
+                square: (5, 2).into(),
             });
 
             let mut spawn_pawn = |x: u8, y: u8| {
@@ -480,8 +449,7 @@ mod board_tests {
                         .insert(Piece {
                             kind: PieceKind::Pawn,
                             colour: PieceColour::Black,
-                            x,
-                            y,
+                            square: Square::new(x, y),
                         })
                         .id(),
                 );
@@ -497,8 +465,7 @@ mod board_tests {
                     .insert(Piece {
                         kind: PieceKind::Bishop,
                         colour: PieceColour::Black,
-                        x: 7,
-                        y: 3,
+                        square: (7, 3).into(),
                     })
                     .id(),
             );
@@ -533,8 +500,7 @@ mod board_tests {
                     .insert(Piece {
                         kind: PieceKind::King,
                         colour: PieceColour::Black,
-                        x: 7,
-                        y: 4,
+                        square: (7, 4).into(),
                     })
                     .id(),
             );
@@ -543,8 +509,7 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::Bishop,
                 colour: PieceColour::White,
-                x: 5,
-                y: 2,
+                square: (5, 2).into(),
             });
 
             let mut spawn_pawn = |x: u8, y: u8| {
@@ -553,8 +518,7 @@ mod board_tests {
                     .insert(Piece {
                         kind: PieceKind::Pawn,
                         colour: PieceColour::Black,
-                        x,
-                        y,
+                        square: Square::new(x, y),
                     })
                     .id()
             };
@@ -593,16 +557,14 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::Black,
-                x: 7,
-                y: 4,
+                square: (7, 4).into(),
             });
 
             // blocked by rook
             world.spawn().insert(Piece {
                 kind: PieceKind::Bishop,
                 colour: PieceColour::White,
-                x: 5,
-                y: 2,
+                square: (5, 2).into(),
             });
 
             // currently blocking bishop from taking the king
@@ -611,8 +573,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::Black,
-                    x: 6,
-                    y: 3,
+                    square: (6, 3).into(),
                 })
                 .id();
 
@@ -633,16 +594,14 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::Black,
-                x: 7,
-                y: 4,
+                square: (7, 4).into(),
             });
 
             // blocked by black bishop
             world.spawn().insert(Piece {
                 kind: PieceKind::Bishop,
                 colour: PieceColour::White,
-                x: 3,
-                y: 0,
+                square: (3, 0).into(),
             });
 
             let bishop_id = world
@@ -650,8 +609,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Bishop,
                     colour: PieceColour::Black,
-                    x: 5,
-                    y: 2,
+                    square: (5, 2).into(),
                 })
                 .id();
 
@@ -678,8 +636,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
@@ -687,8 +644,7 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
                 colour: PieceColour::White,
-                x: 5,
-                y: 3,
+                square: (5, 3).into(),
             });
 
             // could move to take the knight, but would expose the king to the rook
@@ -697,8 +653,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::Black,
-                    x: 6,
-                    y: 4,
+                    square: (6, 4).into(),
                 })
                 .id();
 
@@ -706,8 +661,7 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 5,
-                y: 4,
+                square: (5, 4).into(),
             });
 
             update_stage.run(&mut world);
@@ -732,16 +686,14 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::Black,
-                x: 7,
-                y: 4,
+                square: (7, 4).into(),
             });
 
             let mut spawn_pawn = |x: u8, y: u8| {
                 world.spawn().insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::Black,
-                    x,
-                    y,
+                    square: Square::new(x, y),
                 });
             };
 
@@ -753,15 +705,13 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
                 colour: PieceColour::White,
-                x: 5,
-                y: 3,
+                square: (5, 3).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Queen,
                 colour: PieceColour::White,
-                x: 5,
-                y: 4,
+                square: (5, 4).into(),
             });
 
             update_stage.run(&mut world);
@@ -782,16 +732,14 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Pawn,
                 colour: PieceColour::White,
-                x: 5,
-                y: 4,
+                square: (5, 4).into(),
             });
 
             update_stage.run(&mut world);
@@ -817,51 +765,44 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Bishop,
                 colour: PieceColour::Black,
-                x: 7,
-                y: 5,
+                square: (7, 5).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Pawn,
                 colour: PieceColour::Black,
-                x: 6,
-                y: 5,
+                square: (6, 5).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Pawn,
                 colour: PieceColour::Black,
-                x: 6,
-                y: 4,
+                square: (6, 4).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Pawn,
                 colour: PieceColour::Black,
-                x: 6,
-                y: 3,
+                square: (6, 3).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
                 colour: PieceColour::White,
-                x: 5,
-                y: 3,
+                square: (5, 3).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Queen,
                 colour: PieceColour::White,
-                x: 0,
-                y: 3,
+                square: (0, 3).into(),
             });
 
             update_stage.run(&mut world);
@@ -875,18 +816,18 @@ mod board_tests {
         fn fix_bug_1_incorrectly_restricted_move_calculations() {
             let (mut world, mut update_stage) = setup();
 
-            world.spawn().insert(Piece::white(PieceKind::King, 0, 4));
-            world.spawn().insert(Piece::white(PieceKind::Pawn, 2, 3));
-            world.spawn().insert(Piece::white(PieceKind::Pawn, 1, 4));
-            world.spawn().insert(Piece::white(PieceKind::Pawn, 1, 2));
+            world.spawn().insert(Piece::white(PieceKind::King, Square::new(0, 4)));
+            world.spawn().insert(Piece::white(PieceKind::Pawn, Square::new(2, 3)));
+            world.spawn().insert(Piece::white(PieceKind::Pawn, Square::new(1, 4)));
+            world.spawn().insert(Piece::white(PieceKind::Pawn, Square::new(1, 2)));
 
-            world.spawn().insert(Piece::black(PieceKind::King, 7, 4));
-            world.spawn().insert(Piece::black(PieceKind::Queen, 6, 4));
-            world.spawn().insert(Piece::black(PieceKind::Pawn, 5, 4));
+            world.spawn().insert(Piece::black(PieceKind::King, Square::new(7, 4)));
+            world.spawn().insert(Piece::black(PieceKind::Queen, Square::new(6, 4)));
+            world.spawn().insert(Piece::black(PieceKind::Pawn, Square::new(5, 4)));
 
             let queen_id = world
                 .spawn()
-                .insert(Piece::white(PieceKind::Queen, 0, 3))
+                .insert(Piece::white(PieceKind::Queen, Square::new(0, 3)))
                 .id();
 
             world.insert_resource(PlayerTurn(PieceColour::White));
@@ -909,21 +850,27 @@ mod board_tests {
         fn fix_bug_2_incorrect_king_move_calculations() {
             let (mut world, mut update_stage) = setup();
 
-            let king_id = world.spawn().insert(Piece::white(PieceKind::King, 0, 3)).id();
-            world.spawn().insert(Piece::white(PieceKind::Knight, 4, 4));
-            world.spawn().insert(Piece::black(PieceKind::Rook, 7, 4));
+            let king_id = world
+                .spawn()
+                .insert(Piece::white(PieceKind::King, Square::new(0, 3)))
+                .id();
+            world.spawn().insert(Piece::white(PieceKind::Knight, Square::new(4, 4)));
+            world.spawn().insert(Piece::black(PieceKind::Rook, Square::new(7, 4)));
 
             world.insert_resource(PlayerTurn(PieceColour::White));
             update_stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(king_id), &vec![
-                Move::standard((0, 2)),
-                Move::standard((0, 4)),
-                Move::standard((1, 2)),
-                Move::standard((1, 3)),
-                Move::standard((1, 4)),
-            ]);
+            assert_eq!(
+                all_valid_moves.get(king_id),
+                &vec![
+                    Move::standard((0, 2)),
+                    Move::standard((0, 4)),
+                    Move::standard((1, 2)),
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                ]
+            );
         }
 
         // see bug screenshots 3
@@ -931,24 +878,34 @@ mod board_tests {
         fn fix_bug_3_illegal_king_move_allowed() {
             let (mut world, mut update_stage) = setup();
 
-            let king_id = world.spawn().insert(Piece::white(PieceKind::King, 0, 4)).id();
-            world.spawn().insert(Piece::black(PieceKind::Queen, 0, 1));
+            let king_id = world
+                .spawn()
+                .insert(Piece::white(PieceKind::King, Square::new(0, 4)))
+                .id();
+            world.spawn().insert(Piece::black(PieceKind::Queen, Square::new(0, 1)));
 
             world.insert_resource(PlayerTurn(PieceColour::White));
             update_stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(king_id), &vec![
-                Move::standard((1, 3)),
-                Move::standard((1, 4)),
-                Move::standard((1, 5)),
-            ]);
+            assert_eq!(
+                all_valid_moves.get(king_id),
+                &vec![
+                    Move::standard((1, 3)),
+                    Move::standard((1, 4)),
+                    Move::standard((1, 5)),
+                ]
+            );
         }
     }
 
     mod special_moves {
         use super::*;
-        use crate::board::{calculate_all_moves, move_piece, AllValidMoves, CastlingData, GameState, LastPawnDoubleStep, MovePiece, PlayerTurn, SelectedPiece, SelectedSquare, SpecialMoveData, Square, Taken, PromotedPawn};
+        use crate::board::{
+            calculate_all_moves, move_piece, AllValidMoves, CastlingData, GameState,
+            LastPawnDoubleStep, MovePiece, PlayerTurn, PromotedPawn, SelectedPiece, SelectedSquare,
+            SpecialMoveData, Square, Taken,
+        };
         use crate::moves_calculator::Move;
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
@@ -1002,7 +959,8 @@ mod board_tests {
                     GameState::TargetSquareSelected,
                 );
                 self.overwrite_resource(SelectedPiece(Some(piece_id)));
-                let square = self.query::<(Entity, &Square)>()
+                let square = self
+                    .query::<(Entity, &Square)>()
                     .iter(self)
                     .find_map(|(entity, s)| (square == *s).then(|| entity))
                     .unwrap();
@@ -1023,7 +981,10 @@ mod board_tests {
 
             (0..8).for_each(|x| {
                 (0..8).for_each(|y| {
-                    world.spawn().insert(Square { x_rank: x, y_file: y });
+                    world.spawn().insert(Square {
+                        x_rank: x,
+                        y_file: y,
+                    });
                 })
             });
 
@@ -1055,8 +1016,7 @@ mod board_tests {
             assert_eq!(state.current(), &GameState::MovingPiece);
 
             query.for_each_mut(|(piece_entity, move_piece, mut piece)| {
-                piece.x = move_piece.target_square().x_rank;
-                piece.y = move_piece.target_square().y_file;
+                piece.square = move_piece.target_square();
 
                 commands.entity(piece_entity).remove::<MovePiece>();
             });
@@ -1080,15 +1040,13 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::Black,
-                x: 7,
-                y: 4,
+                square: (7, 4).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::White,
-                x: 0,
-                y: 4,
+                square: (0, 4).into(),
             });
 
             let black_pawn = world
@@ -1096,8 +1054,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::Black,
-                    x: 6,
-                    y: 4,
+                    square: (6, 4).into(),
                 })
                 .id();
 
@@ -1106,8 +1063,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::White,
-                    x: 4,
-                    y: 3,
+                    square: (4, 3).into(),
                 })
                 .id();
 
@@ -1157,8 +1113,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
@@ -1167,8 +1122,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 4,
+                    square: (0, 4).into(),
                 })
                 .id();
 
@@ -1177,8 +1131,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::Black,
-                    x: 6,
-                    y: 4,
+                    square: (6, 4).into(),
                 })
                 .id();
 
@@ -1187,8 +1140,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::White,
-                    x: 4,
-                    y: 3,
+                    square: (4, 3).into(),
                 })
                 .id();
 
@@ -1239,8 +1191,7 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::Black,
-                x: 7,
-                y: 4,
+                square: (7, 4).into(),
             });
 
             let white_king = world
@@ -1248,8 +1199,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::White,
-                    x: 3,
-                    y: 3,
+                    square: (3, 3).into(),
                 })
                 .id();
 
@@ -1258,8 +1208,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::Black,
-                    x: 6,
-                    y: 4,
+                    square: (6, 4).into(),
                 })
                 .id();
 
@@ -1268,8 +1217,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::White,
-                    x: 4,
-                    y: 5,
+                    square: (4, 5).into(),
                 })
                 .id();
 
@@ -1277,26 +1225,22 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::Black,
-                x: 0,
-                y: 4,
+                square: (0, 4).into(),
             });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::Black,
-                x: 0,
-                y: 2,
+                square: (0, 2).into(),
             });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::Black,
-                x: 4,
-                y: 0,
+                square: (4, 0).into(),
             });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::Black,
-                x: 2,
-                y: 0,
+                square: (2, 0).into(),
             });
 
             let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
@@ -1338,15 +1282,13 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::Black,
-                x: 7,
-                y: 4,
+                square: (7, 4).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::White,
-                x: 3,
-                y: 3,
+                square: (3, 3).into(),
             });
 
             let black_pawn = world
@@ -1354,50 +1296,43 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::Black,
-                    x: 6,
-                    y: 4,
+                    square: (6, 4).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Pawn,
                 colour: PieceColour::White,
-                x: 4,
-                y: 3,
+                square: (4, 3).into(),
             });
 
             // prevent the white king from being able to move
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::Black,
-                x: 0,
-                y: 4,
+                square: (0, 4).into(),
             });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::Black,
-                x: 0,
-                y: 2,
+                square: (0, 2).into(),
             });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::Black,
-                x: 4,
-                y: 0,
+                square: (4, 0).into(),
             });
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::Black,
-                x: 2,
-                y: 0,
+                square: (2, 0).into(),
             });
 
             // prevents the pawn from moving
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::Black,
-                x: 0,
-                y: 3,
+                square: (0, 3).into(),
             });
 
             let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
@@ -1432,15 +1367,13 @@ mod board_tests {
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::Black,
-                x: 7,
-                y: 0,
+                square: (7, 0).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::White,
-                x: 4,
-                y: 2,
+                square: (4, 2).into(),
             });
 
             let black_pawn = world
@@ -1448,16 +1381,14 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::Black,
-                    x: 6,
-                    y: 4,
+                    square: (6, 4).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Bishop,
                 colour: PieceColour::Black,
-                x: 7,
-                y: 5,
+                square: (7, 5).into(),
             });
 
             let white_pawn = world
@@ -1465,8 +1396,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Pawn,
                     colour: PieceColour::White,
-                    x: 4,
-                    y: 3,
+                    square: (4, 3).into(),
                 })
                 .id();
 
@@ -1511,6 +1441,62 @@ mod board_tests {
         }
 
         #[test]
+        fn it_should_not_be_possible_to_capture_en_passant_if_the_target_is_not_directly_to_the_left_or_right(
+        ) {
+            let (mut world, mut stage) = setup();
+
+            world.spawn().insert(Piece::black(PieceKind::King, Square::new(7, 4)));
+            world.spawn().insert(Piece::white(PieceKind::King, Square::new(0, 4)));
+
+            let black_pawn = world
+                .spawn()
+                .insert(Piece::black(PieceKind::Pawn, Square::new(6, 4)))
+                .id();
+
+            let white_pawn = world
+                .spawn()
+                .insert(Piece::white(PieceKind::Pawn, Square::new(1, 3)))
+                .id();
+
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.king_moved = true;
+            special_moves.white_castling_data.king_moved = true;
+
+            stage.run(&mut world);
+
+            world.move_piece(black_pawn, (4, 4).into());
+            stage.run(&mut world);
+
+            let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
+            assert_eq!(
+                &special_moves.last_pawn_double_step,
+                &Some(LastPawnDoubleStep {
+                    pawn_id: black_pawn,
+                    square: (4, 4).into(),
+                })
+            );
+
+            assert_eq!(
+                world.get_resource::<State<GameState>>().unwrap().current(),
+                &GameState::NothingSelected
+            );
+
+            stage.run(&mut world);
+
+            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
+            assert_eq!(
+                all_valid_moves.get(white_pawn),
+                &vec![Move::standard((2, 3)), Move::pawn_double_step(3, 3)]
+            );
+        }
+
+        #[test]
+        fn a_pawn_on_an_edge_of_the_board_double_stepping_should_not_cause_overflow_when_checking_for_en_passant(
+        ) {
+            todo!()
+        }
+
+        #[test]
         fn it_should_be_possible_to_castle_queenside_if_neither_the_king_nor_the_rook_have_moved() {
             let (mut world, mut stage) = setup();
 
@@ -1519,16 +1505,14 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::White,
-                x: 0,
-                y: 3,
+                square: (0, 3).into(),
             });
 
             let black_rook = world
@@ -1536,8 +1520,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 0,
+                    square: (7, 0).into(),
                 })
                 .id();
 
@@ -1550,12 +1533,12 @@ mod board_tests {
             stage.run(&mut world);
 
             let black_king = world.get::<Piece>(black_king).unwrap();
-            assert_eq!(black_king.x, 7);
-            assert_eq!(black_king.y, 2);
+            assert_eq!(black_king.square.x_rank, 7);
+            assert_eq!(black_king.square.y_file, 2);
 
             let black_rook = world.get::<Piece>(black_rook).unwrap();
-            assert_eq!(black_rook.x, 7);
-            assert_eq!(black_rook.y, 3);
+            assert_eq!(black_rook.square.x_rank, 7);
+            assert_eq!(black_rook.square.y_file, 3);
         }
 
         #[test]
@@ -1567,16 +1550,14 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 4,
+                    square: (0, 4).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::King,
                 colour: PieceColour::Black,
-                x: 7,
-                y: 4,
+                square: (7, 4).into(),
             });
 
             let white_rook = world
@@ -1584,8 +1565,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 7,
+                    square: (0, 7).into(),
                 })
                 .id();
 
@@ -1601,12 +1581,12 @@ mod board_tests {
             stage.run(&mut world);
 
             let white_king = world.get::<Piece>(white_king).unwrap();
-            assert_eq!(white_king.x, 0);
-            assert_eq!(white_king.y, 6);
+            assert_eq!(white_king.square.x_rank, 0);
+            assert_eq!(white_king.square.y_file, 6);
 
             let white_rook = world.get::<Piece>(white_rook).unwrap();
-            assert_eq!(white_rook.x, 0);
-            assert_eq!(white_rook.y, 5);
+            assert_eq!(white_rook.square.x_rank, 0);
+            assert_eq!(white_rook.square.y_file, 5);
         }
 
         #[test]
@@ -1618,8 +1598,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 4,
+                    square: (0, 4).into(),
                 })
                 .id();
 
@@ -1628,8 +1607,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
@@ -1638,8 +1616,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 7,
+                    square: (0, 7).into(),
                 })
                 .id();
 
@@ -1648,8 +1625,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 0,
+                    square: (0, 0).into(),
                 })
                 .id();
 
@@ -1720,8 +1696,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 4,
+                    square: (0, 4).into(),
                 })
                 .id();
 
@@ -1730,8 +1705,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
@@ -1740,8 +1714,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 7,
+                    square: (0, 7).into(),
                 })
                 .id();
 
@@ -1750,8 +1723,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 0,
+                    square: (0, 0).into(),
                 })
                 .id();
 
@@ -1824,8 +1796,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 4,
+                    square: (0, 4).into(),
                 })
                 .id();
 
@@ -1834,8 +1805,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
@@ -1844,8 +1814,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 7,
+                    square: (0, 7).into(),
                 })
                 .id();
 
@@ -1854,8 +1823,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 0,
+                    square: (0, 0).into(),
                 })
                 .id();
 
@@ -1928,8 +1896,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 4,
+                    square: (0, 4).into(),
                 })
                 .id();
 
@@ -1938,30 +1905,26 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 0,
-                y: 7,
+                square: (0, 7).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 0,
-                y: 0,
+                square: (0, 0).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
                 colour: PieceColour::Black,
-                x: 2,
-                y: 5,
+                square: (2, 5).into(),
             });
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
@@ -1989,8 +1952,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 4,
+                    square: (0, 4).into(),
                 })
                 .id();
 
@@ -1999,8 +1961,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
@@ -2009,23 +1970,20 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 7,
+                    square: (0, 7).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 0,
-                y: 0,
+                square: (0, 0).into(),
             });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Knight,
                 colour: PieceColour::Black,
-                x: 2,
-                y: 2,
+                square: (2, 2).into(),
             });
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
@@ -2052,8 +2010,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 4,
+                    square: (0, 4).into(),
                 })
                 .id();
 
@@ -2062,8 +2019,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::King,
                     colour: PieceColour::Black,
-                    x: 7,
-                    y: 4,
+                    square: (7, 4).into(),
                 })
                 .id();
 
@@ -2072,16 +2028,14 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Rook,
                     colour: PieceColour::White,
-                    x: 0,
-                    y: 7,
+                    square: (0, 7).into(),
                 })
                 .id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
                 colour: PieceColour::White,
-                x: 0,
-                y: 0,
+                square: (0, 0).into(),
             });
 
             let black_knight = world
@@ -2089,8 +2043,7 @@ mod board_tests {
                 .insert(Piece {
                     kind: PieceKind::Knight,
                     colour: PieceColour::Black,
-                    x: 2,
-                    y: 1,
+                    square: (2, 1).into(),
                 })
                 .id();
 
@@ -2136,13 +2089,13 @@ mod piece_tests {
 
     mod valid_moves_of_a_white_pawn {
         use super::*;
+        use crate::board::Square;
 
         fn pawn(x: u8, y: u8) -> Piece {
             Piece {
                 colour: PieceColour::White,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             }
         }
 
@@ -2199,14 +2152,12 @@ mod piece_tests {
                 Piece {
                     colour: PieceColour::Black,
                     kind: PieceKind::Pawn,
-                    x: 3,
-                    y: 2,
+                    square: (3, 2).into(),
                 },
                 Piece {
                     colour: PieceColour::Black,
                     kind: PieceKind::Pawn,
-                    x: 3,
-                    y: 0,
+                    square: (3, 0).into(),
                 },
                 pawn,
             ];
@@ -2242,8 +2193,7 @@ mod piece_tests {
                 Piece {
                     colour: PieceColour::Black,
                     kind: PieceKind::Pawn,
-                    x: 3,
-                    y: 0,
+                    square: (3, 0).into(),
                 },
                 pawn,
             ];
@@ -2259,8 +2209,7 @@ mod piece_tests {
                 Piece {
                     colour: PieceColour::White,
                     kind: PieceKind::Pawn,
-                    x: 3,
-                    y: 0,
+                    square: (3, 0).into(),
                 },
                 pawn,
             ];
@@ -2276,8 +2225,7 @@ mod piece_tests {
                 Piece {
                     colour: PieceColour::White,
                     kind: PieceKind::Pawn,
-                    x: 3,
-                    y: 0,
+                    square: (3, 0).into(),
                 },
                 pawn,
             ];
@@ -2293,8 +2241,7 @@ mod piece_tests {
                 Piece {
                     colour: PieceColour::White,
                     kind: PieceKind::Pawn,
-                    x: 2,
-                    y: 0,
+                    square: (2, 0).into(),
                 },
                 pawn,
             ];
@@ -2306,13 +2253,13 @@ mod piece_tests {
 
     mod valid_moves_of_a_black_pawn {
         use super::*;
+        use crate::board::Square;
 
         fn pawn(x: u8, y: u8) -> Piece {
             Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             }
         }
 
@@ -2374,14 +2321,12 @@ mod piece_tests {
                 Piece {
                     colour: PieceColour::White,
                     kind: PieceKind::Pawn,
-                    x: 4,
-                    y: 2,
+                    square: (4, 2).into(),
                 },
                 Piece {
                     colour: PieceColour::White,
                     kind: PieceKind::Pawn,
-                    x: 4,
-                    y: 0,
+                    square: (4, 0).into(),
                 },
                 pawn,
             ];
@@ -2416,8 +2361,7 @@ mod piece_tests {
                 Piece {
                     colour: PieceColour::White,
                     kind: PieceKind::Pawn,
-                    x: 4,
-                    y: 0,
+                    square: (4, 0).into(),
                 },
                 pawn,
             ];
@@ -2433,8 +2377,7 @@ mod piece_tests {
                 Piece {
                     colour: PieceColour::Black,
                     kind: PieceKind::Pawn,
-                    x: 4,
-                    y: 0,
+                    square: (4, 0).into(),
                 },
                 pawn,
             ];
@@ -2450,8 +2393,7 @@ mod piece_tests {
                 Piece {
                     colour: PieceColour::White,
                     kind: PieceKind::Pawn,
-                    x: 4,
-                    y: 0,
+                    square: (4, 0).into(),
                 },
                 pawn,
             ];
@@ -2467,8 +2409,7 @@ mod piece_tests {
                 Piece {
                     colour: PieceColour::White,
                     kind: PieceKind::Pawn,
-                    x: 5,
-                    y: 0,
+                    square: (5, 0).into(),
                 },
                 pawn,
             ];
@@ -2480,13 +2421,13 @@ mod piece_tests {
 
     mod valid_moves_of_a_king {
         use super::*;
+        use crate::board::Square;
 
         fn king(x: u8, y: u8) -> Piece {
             Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::King,
-                x,
-                y,
+                square: Square::new(x, y),
             }
         }
 
@@ -2572,8 +2513,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let king = king(1, 1);
             let pieces = [king, pawn(2, 1), pawn(2, 2), pawn(1, 2)];
@@ -2623,8 +2563,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::White,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let king = king(1, 1);
             let pieces = [king, pawn(2, 1), pawn(2, 2), pawn(1, 2)];
@@ -2681,13 +2620,13 @@ mod piece_tests {
 
     mod valid_moves_of_a_queen {
         use super::*;
+        use crate::board::Square;
 
         fn queen(x: u8, y: u8) -> Piece {
             Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Queen,
-                x,
-                y,
+                square: Square::new(x, y),
             }
         }
 
@@ -2799,8 +2738,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let queen = queen(1, 1);
             let pieces = [queen, pawn(1, 2), pawn(5, 1), pawn(3, 3)];
@@ -2890,8 +2828,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::White,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let queen = queen(1, 1);
             let pieces = [queen, pawn(1, 2), pawn(5, 1), pawn(3, 3)];
@@ -2985,8 +2922,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let queen = queen(7, 3);
             let pieces = [
@@ -3071,13 +3007,13 @@ mod piece_tests {
 
     mod valid_moves_of_a_bishop {
         use super::*;
+        use crate::board::Square;
 
         fn bishop(x: u8, y: u8) -> Piece {
             Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Bishop,
-                x,
-                y,
+                square: Square::new(x, y),
             }
         }
 
@@ -3135,8 +3071,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let bishop = bishop(1, 1);
             let pieces = [bishop, pawn(5, 5)];
@@ -3189,8 +3124,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::White,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let bishop = bishop(1, 1);
             let pieces = [bishop, pawn(5, 5)];
@@ -3242,13 +3176,13 @@ mod piece_tests {
 
     mod valid_moves_of_a_knight {
         use super::*;
+        use crate::board::Square;
 
         fn knight(x: u8, y: u8) -> Piece {
             Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Knight,
-                x,
-                y,
+                square: Square::new(x, y),
             }
         }
 
@@ -3331,8 +3265,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let knight = knight(2, 2);
             let pieces = [
@@ -3401,8 +3334,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let knight = knight(2, 2);
             let pieces = [knight, pawn(0, 1), pawn(4, 1), pawn(3, 0)];
@@ -3450,13 +3382,13 @@ mod piece_tests {
 
     mod valid_moves_of_a_rook {
         use super::*;
+        use crate::board::Square;
 
         fn rook(x: u8, y: u8) -> Piece {
             Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Rook,
-                x,
-                y,
+                square: Square::new(x, y),
             }
         }
 
@@ -3531,8 +3463,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::Black,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let rook = rook(4, 4);
             let pieces = [rook, pawn(3, 4), pawn(4, 2)];
@@ -3606,8 +3537,7 @@ mod piece_tests {
             let pawn = |x: u8, y: u8| Piece {
                 colour: PieceColour::White,
                 kind: PieceKind::Pawn,
-                x,
-                y,
+                square: Square::new(x, y),
             };
             let rook = rook(1, 1);
             let pieces = [rook, pawn(5, 1), pawn(1, 3)];
