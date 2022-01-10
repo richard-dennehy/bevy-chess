@@ -145,7 +145,7 @@ mod board_tests {
             update_stage.run(&mut world);
             let valid_moves = world.get_resource::<AllValidMoves>().unwrap();
 
-            assert_eq!(valid_moves.get(king_id), &vec![Move::standard((6, 4))]);
+            assert_eq!(valid_moves.get(king_id), &vec![Move::standard((6, 4).into())]);
             assert_eq!(valid_moves.get(rook_id), &vec![]);
             assert_eq!(valid_moves.get(knight_id), &vec![]);
             assert_eq!(valid_moves.get(queen_id), &vec![]);
@@ -273,7 +273,7 @@ mod board_tests {
             ids.into_iter()
                 .for_each(|id| assert!(all_valid_moves.get(id).is_empty()));
 
-            assert_eq!(all_valid_moves.get(pawn_id), &vec![Move::standard((5, 3))]);
+            assert_eq!(all_valid_moves.get(pawn_id), &vec![Move::standard((5, 3).into())]);
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(game_state.current(), &GameState::NothingSelected);
@@ -367,7 +367,7 @@ mod board_tests {
             update_stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(king_id), &vec![Move::standard((6, 4))]);
+            assert_eq!(all_valid_moves.get(king_id), &vec![Move::standard((6, 4).into())]);
         }
 
         #[test]
@@ -543,7 +543,7 @@ mod board_tests {
 
             assert_eq!(
                 all_valid_moves.get(blocking_pawn),
-                &vec![Move::standard((6, 3))]
+                &vec![Move::standard((6, 3).into())]
             );
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
@@ -619,9 +619,9 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(bishop_id),
                 &vec![
-                    Move::standard((6, 3)),
-                    Move::standard((4, 1)),
-                    Move::standard((3, 0)),
+                    Move::standard((6, 3).into()),
+                    Move::standard((4, 1).into()),
+                    Move::standard((3, 0).into()),
                 ]
             );
         }
@@ -671,9 +671,9 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(king_id),
                 &vec![
-                    Move::standard((6, 3)),
-                    Move::standard((7, 3)),
-                    Move::standard((7, 5))
+                    Move::standard((6, 3).into()),
+                    Move::standard((7, 3).into()),
+                    Move::standard((7, 5).into())
                 ]
             );
         }
@@ -748,9 +748,9 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(king_id),
                 &vec![
-                    Move::standard((6, 4)),
-                    Move::standard((7, 3)),
-                    Move::standard((7, 5))
+                    Move::standard((6, 4).into()),
+                    Move::standard((7, 3).into()),
+                    Move::standard((7, 5).into())
                 ]
             );
         }
@@ -808,7 +808,7 @@ mod board_tests {
             update_stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(king_id), &vec![Move::standard((7, 3)),]);
+            assert_eq!(all_valid_moves.get(king_id), &vec![Move::standard((7, 3).into()),]);
         }
 
         // see bug screenshots 1
@@ -837,10 +837,10 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(queen_id),
                 &vec![
-                    Move::standard((1, 3)),
-                    Move::standard((0, 2)),
-                    Move::standard((0, 1)),
-                    Move::standard((0, 0)),
+                    Move::standard((1, 3).into()),
+                    Move::standard((0, 2).into()),
+                    Move::standard((0, 1).into()),
+                    Move::standard((0, 0).into()),
                 ]
             );
         }
@@ -864,11 +864,11 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(king_id),
                 &vec![
-                    Move::standard((0, 2)),
-                    Move::standard((0, 4)),
-                    Move::standard((1, 2)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
+                    Move::standard((0, 2).into()),
+                    Move::standard((0, 4).into()),
+                    Move::standard((1, 2).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
                 ]
             );
         }
@@ -891,9 +891,9 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(king_id),
                 &vec![
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
                 ]
             );
         }
@@ -1167,7 +1167,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_pawn),
-                &vec![Move::standard((5, 3)), Move::en_passant(5, 4, black_pawn)]
+                &vec![Move::standard((5, 3).into()), Move::en_passant((5, 4).into(), black_pawn)]
             );
 
             world.move_piece(white_king, (1, 4).into());
@@ -1180,7 +1180,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_pawn),
-                &vec![Move::standard((5, 3))]
+                &vec![Move::standard((5, 3).into())]
             );
         }
 
@@ -1270,7 +1270,7 @@ mod board_tests {
             assert_eq!(all_valid_moves.get(white_king), &vec![]);
             assert_eq!(
                 all_valid_moves.get(white_pawn),
-                &vec![Move::en_passant(5, 4, black_pawn)]
+                &vec![Move::en_passant((5, 4).into(), black_pawn)]
             );
         }
 
@@ -1436,7 +1436,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_pawn),
-                &vec![Move::standard((5, 3))]
+                &vec![Move::standard((5, 3).into())]
             );
         }
 
@@ -1486,7 +1486,7 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_pawn),
-                &vec![Move::standard((2, 3)), Move::pawn_double_step(3, 3)]
+                &vec![Move::standard((2, 3).into()), Move::pawn_double_step((3, 3).into())]
             );
         }
 
@@ -1688,13 +1688,13 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 3)),
-                    Move::standard((0, 5)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::queenside_castle(0, 0, queenside_rook),
-                    Move::kingside_castle(0, 7, kingside_rook)
+                    Move::standard((0, 3).into()),
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::queenside_castle((0, 0).into(), queenside_rook),
+                    Move::kingside_castle((0, 7).into(), kingside_rook)
                 ]
             );
 
@@ -1708,11 +1708,11 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 4)),
-                    Move::standard((0, 6)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::standard((1, 6))
+                    Move::standard((0, 4).into()),
+                    Move::standard((0, 6).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::standard((1, 6).into())
                 ]
             );
 
@@ -1726,11 +1726,11 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 3)),
-                    Move::standard((0, 5)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5))
+                    Move::standard((0, 3).into()),
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into())
                 ]
             );
         }
@@ -1786,13 +1786,13 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 3)),
-                    Move::standard((0, 5)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::queenside_castle(0, 0, queenside_rook),
-                    Move::kingside_castle(0, 7, white_kingside_rook)
+                    Move::standard((0, 3).into()),
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::queenside_castle((0, 0).into(), queenside_rook),
+                    Move::kingside_castle((0, 7).into(), white_kingside_rook)
                 ]
             );
 
@@ -1806,12 +1806,12 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 3)),
-                    Move::standard((0, 5)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::queenside_castle(0, 0, queenside_rook)
+                    Move::standard((0, 3).into()),
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::queenside_castle((0, 0).into(), queenside_rook)
                 ]
             );
 
@@ -1825,12 +1825,12 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 3)),
-                    Move::standard((0, 5)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::queenside_castle(0, 0, queenside_rook)
+                    Move::standard((0, 3).into()),
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::queenside_castle((0, 0).into(), queenside_rook)
                 ]
             );
         }
@@ -1886,13 +1886,13 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 3)),
-                    Move::standard((0, 5)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::queenside_castle(0, 0, white_queenside_rook),
-                    Move::kingside_castle(0, 7, kingside_rook)
+                    Move::standard((0, 3).into()),
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::queenside_castle((0, 0).into(), white_queenside_rook),
+                    Move::kingside_castle((0, 7).into(), kingside_rook)
                 ]
             );
 
@@ -1906,12 +1906,12 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 3)),
-                    Move::standard((0, 5)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::kingside_castle(0, 7, kingside_rook)
+                    Move::standard((0, 3).into()),
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::kingside_castle((0, 7).into(), kingside_rook)
                 ]
             );
 
@@ -1925,12 +1925,12 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 3)),
-                    Move::standard((0, 5)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::kingside_castle(0, 7, kingside_rook)
+                    Move::standard((0, 3).into()),
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::kingside_castle((0, 7).into(), kingside_rook)
                 ]
             );
         }
@@ -1982,10 +1982,10 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 3)),
-                    Move::standard((0, 5)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5))
+                    Move::standard((0, 3).into()),
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into())
                 ]
             );
         }
@@ -2041,10 +2041,10 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 5)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 5)),
-                    Move::kingside_castle(0, 7, kingside_rook)
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 5).into()),
+                    Move::kingside_castle((0, 7).into(), kingside_rook)
                 ]
             );
         }
@@ -2107,12 +2107,12 @@ mod board_tests {
             assert_eq!(
                 all_valid_moves.get(white_king),
                 &vec![
-                    Move::standard((0, 3)),
-                    Move::standard((0, 5)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::kingside_castle(0, 7, kingside_rook)
+                    Move::standard((0, 3).into()),
+                    Move::standard((0, 5).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::kingside_castle((0, 7).into(), kingside_rook)
                 ]
             );
         }
@@ -2124,15 +2124,15 @@ mod piece_tests {
     use crate::pieces::*;
 
     fn single_move_path((x, y): (u8, u8), colour: PieceColour) -> PiecePath {
-        PiecePath::single(PotentialMove::new(Move::standard((x, y)), None), colour)
+        PiecePath::single(PotentialMove::new(Move::standard((x, y).into()), None), colour)
     }
 
     fn unblocked_move((x, y): (u8, u8)) -> PotentialMove {
-        PotentialMove::new(Move::standard((x, y)), None)
+        PotentialMove::new(Move::standard((x, y).into()), None)
     }
 
     fn blocked_move((x, y): (u8, u8), by: PieceColour) -> PotentialMove {
-        PotentialMove::new(Move::standard((x, y)), Some(by))
+        PotentialMove::new(Move::standard((x, y).into()), Some(by))
     }
 
     mod valid_moves_of_a_white_pawn {
@@ -2159,7 +2159,7 @@ mod piece_tests {
                 assert_eq!(valid_moves, vec![single_move_path((3, 0), pawn.colour)]);
                 assert_eq!(
                     valid_moves[0].legal_path_vec(),
-                    vec![Move::standard((3, 0))]
+                    vec![Move::standard((3, 0).into())]
                 );
             }
 
@@ -2168,7 +2168,7 @@ mod piece_tests {
                 let pawn = pawn(1, 0);
                 let valid_moves = pawn.valid_moves(&[pawn].into());
 
-                let move_ = Move::pawn_double_step(3, 0);
+                let move_ = Move::pawn_double_step((3, 0).into());
                 assert_eq!(
                     valid_moves,
                     vec![
@@ -2179,7 +2179,7 @@ mod piece_tests {
 
                 assert_eq!(
                     valid_moves[0].legal_path_vec(),
-                    vec![Move::standard((2, 0))]
+                    vec![Move::standard((2, 0).into())]
                 );
                 assert_eq!(valid_moves[1].legal_path_vec(), vec![move_]);
             }
@@ -2222,15 +2222,15 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((3, 1))]
+                vec![Move::standard((3, 1).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((3, 0))]
+                vec![Move::standard((3, 0).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((3, 2))]
+                vec![Move::standard((3, 2).into())]
             );
         }
 
@@ -2282,7 +2282,7 @@ mod piece_tests {
             assert_eq!(valid_moves, vec![single_move_path((2, 0), pawn.colour)]);
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((2, 0))]
+                vec![Move::standard((2, 0).into())]
             );
 
             let pieces = [
@@ -2323,7 +2323,7 @@ mod piece_tests {
                 assert_eq!(valid_moves, vec![single_move_path((4, 0), pawn.colour)]);
                 assert_eq!(
                     valid_moves[0].legal_path_vec(),
-                    vec![Move::standard((4, 0))]
+                    vec![Move::standard((4, 0).into())]
                 );
             }
 
@@ -2337,7 +2337,7 @@ mod piece_tests {
                     vec![
                         single_move_path((5, 0), pawn.colour),
                         PiecePath::single(
-                            PotentialMove::new(Move::pawn_double_step(4, 0), None),
+                            PotentialMove::new(Move::pawn_double_step((4, 0).into()), None),
                             pawn.colour
                         )
                     ]
@@ -2345,11 +2345,11 @@ mod piece_tests {
 
                 assert_eq!(
                     valid_moves[0].legal_path_vec(),
-                    vec![Move::standard((5, 0))]
+                    vec![Move::standard((5, 0).into())]
                 );
                 assert_eq!(
                     valid_moves[1].legal_path_vec(),
-                    vec![Move::pawn_double_step(4, 0)]
+                    vec![Move::pawn_double_step((4, 0).into())]
                 );
             }
 
@@ -2390,15 +2390,15 @@ mod piece_tests {
             );
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((4, 1))]
+                vec![Move::standard((4, 1).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((4, 0))]
+                vec![Move::standard((4, 0).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((4, 2))]
+                vec![Move::standard((4, 2).into())]
             );
         }
 
@@ -2450,7 +2450,7 @@ mod piece_tests {
             assert_eq!(valid_moves, vec![single_move_path((5, 0), pawn.colour)]);
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((5, 0))]
+                vec![Move::standard((5, 0).into())]
             );
 
             let pieces = [
@@ -2498,35 +2498,35 @@ mod piece_tests {
             );
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((0, 0))]
+                vec![Move::standard((0, 0).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((0, 2))]
+                vec![Move::standard((0, 2).into())]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
             assert_eq!(
                 valid_moves[4].legal_path_vec(),
-                vec![Move::standard((1, 2))]
+                vec![Move::standard((1, 2).into())]
             );
             assert_eq!(
                 valid_moves[5].legal_path_vec(),
-                vec![Move::standard((2, 0))]
+                vec![Move::standard((2, 0).into())]
             );
             assert_eq!(
                 valid_moves[6].legal_path_vec(),
-                vec![Move::standard((2, 1))]
+                vec![Move::standard((2, 1).into())]
             );
             assert_eq!(
                 valid_moves[7].legal_path_vec(),
-                vec![Move::standard((2, 2))]
+                vec![Move::standard((2, 2).into())]
             );
         }
 
@@ -2544,15 +2544,15 @@ mod piece_tests {
             );
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((1, 1))]
+                vec![Move::standard((1, 1).into())]
             );
         }
 
@@ -2583,24 +2583,24 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((0, 0))]
+                vec![Move::standard((0, 0).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((0, 2))]
+                vec![Move::standard((0, 2).into())]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
             assert!(valid_moves[4].legal_path_vec().is_empty());
             assert_eq!(
                 valid_moves[5].legal_path_vec(),
-                vec![Move::standard((2, 0))]
+                vec![Move::standard((2, 0).into())]
             );
             assert!(valid_moves[6].legal_path_vec().is_empty());
             assert!(valid_moves[7].legal_path_vec().is_empty());
@@ -2633,35 +2633,35 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((0, 0))]
+                vec![Move::standard((0, 0).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((0, 2))]
+                vec![Move::standard((0, 2).into())]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
             assert_eq!(
                 valid_moves[4].legal_path_vec(),
-                vec![Move::standard((1, 2))]
+                vec![Move::standard((1, 2).into())]
             );
             assert_eq!(
                 valid_moves[5].legal_path_vec(),
-                vec![Move::standard((2, 0))]
+                vec![Move::standard((2, 0).into())]
             );
             assert_eq!(
                 valid_moves[6].legal_path_vec(),
-                vec![Move::standard((2, 1))]
+                vec![Move::standard((2, 1).into())]
             );
             assert_eq!(
                 valid_moves[7].legal_path_vec(),
-                vec![Move::standard((2, 2))]
+                vec![Move::standard((2, 2).into())]
             );
         }
     }
@@ -2729,55 +2729,55 @@ mod piece_tests {
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
                 vec![
-                    Move::standard((2, 1)),
-                    Move::standard((3, 1)),
-                    Move::standard((4, 1)),
-                    Move::standard((5, 1)),
-                    Move::standard((6, 1)),
-                    Move::standard((7, 1)),
+                    Move::standard((2, 1).into()),
+                    Move::standard((3, 1).into()),
+                    Move::standard((4, 1).into()),
+                    Move::standard((5, 1).into()),
+                    Move::standard((6, 1).into()),
+                    Move::standard((7, 1).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
                 vec![
-                    Move::standard((1, 2)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::standard((1, 6)),
-                    Move::standard((1, 7)),
+                    Move::standard((1, 2).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::standard((1, 6).into()),
+                    Move::standard((1, 7).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[4].legal_path_vec(),
-                vec![Move::standard((2, 0))]
+                vec![Move::standard((2, 0).into())]
             );
             assert_eq!(
                 valid_moves[5].legal_path_vec(),
                 vec![
-                    Move::standard((2, 2)),
-                    Move::standard((3, 3)),
-                    Move::standard((4, 4)),
-                    Move::standard((5, 5)),
-                    Move::standard((6, 6)),
-                    Move::standard((7, 7)),
+                    Move::standard((2, 2).into()),
+                    Move::standard((3, 3).into()),
+                    Move::standard((4, 4).into()),
+                    Move::standard((5, 5).into()),
+                    Move::standard((6, 6).into()),
+                    Move::standard((7, 7).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[6].legal_path_vec(),
-                vec![Move::standard((0, 0))]
+                vec![Move::standard((0, 0).into())]
             );
             assert_eq!(
                 valid_moves[7].legal_path_vec(),
-                vec![Move::standard((0, 2))]
+                vec![Move::standard((0, 2).into())]
             );
         }
 
@@ -2839,35 +2839,35 @@ mod piece_tests {
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
                 vec![
-                    Move::standard((2, 1)),
-                    Move::standard((3, 1)),
-                    Move::standard((4, 1)),
+                    Move::standard((2, 1).into()),
+                    Move::standard((3, 1).into()),
+                    Move::standard((4, 1).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
             assert_eq!(valid_moves[3].legal_path_vec(), vec![]);
             assert_eq!(
                 valid_moves[4].legal_path_vec(),
-                vec![Move::standard((2, 0))]
+                vec![Move::standard((2, 0).into())]
             );
             assert_eq!(
                 valid_moves[5].legal_path_vec(),
-                vec![Move::standard((2, 2)),]
+                vec![Move::standard((2, 2).into()),]
             );
             assert_eq!(
                 valid_moves[6].legal_path_vec(),
-                vec![Move::standard((0, 0))]
+                vec![Move::standard((0, 0).into())]
             );
             assert_eq!(
                 valid_moves[7].legal_path_vec(),
-                vec![Move::standard((0, 2))]
+                vec![Move::standard((0, 2).into())]
             );
         }
 
@@ -2929,39 +2929,39 @@ mod piece_tests {
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
                 vec![
-                    Move::standard((2, 1)),
-                    Move::standard((3, 1)),
-                    Move::standard((4, 1)),
-                    Move::standard((5, 1)),
+                    Move::standard((2, 1).into()),
+                    Move::standard((3, 1).into()),
+                    Move::standard((4, 1).into()),
+                    Move::standard((5, 1).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((1, 2)),]
+                vec![Move::standard((1, 2).into()),]
             );
             assert_eq!(
                 valid_moves[4].legal_path_vec(),
-                vec![Move::standard((2, 0))]
+                vec![Move::standard((2, 0).into())]
             );
             assert_eq!(
                 valid_moves[5].legal_path_vec(),
-                vec![Move::standard((2, 2)), Move::standard((3, 3)),]
+                vec![Move::standard((2, 2).into()), Move::standard((3, 3).into()),]
             );
             assert_eq!(
                 valid_moves[6].legal_path_vec(),
-                vec![Move::standard((0, 0))]
+                vec![Move::standard((0, 0).into())]
             );
             assert_eq!(
                 valid_moves[7].legal_path_vec(),
-                vec![Move::standard((0, 2))]
+                vec![Move::standard((0, 2).into())]
             );
         }
 
@@ -3044,10 +3044,10 @@ mod piece_tests {
             assert_eq!(
                 valid_moves[4].legal_path_vec(),
                 vec![
-                    Move::standard((6, 4)),
-                    Move::standard((5, 5)),
-                    Move::standard((4, 6)),
-                    Move::standard((3, 7)),
+                    Move::standard((6, 4).into()),
+                    Move::standard((5, 5).into()),
+                    Move::standard((4, 6).into()),
+                    Move::standard((3, 7).into()),
                 ]
             );
         }
@@ -3091,26 +3091,26 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((2, 0))]
+                vec![Move::standard((2, 0).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
                 vec![
-                    Move::standard((2, 2)),
-                    Move::standard((3, 3)),
-                    Move::standard((4, 4)),
-                    Move::standard((5, 5)),
-                    Move::standard((6, 6)),
-                    Move::standard((7, 7)),
+                    Move::standard((2, 2).into()),
+                    Move::standard((3, 3).into()),
+                    Move::standard((4, 4).into()),
+                    Move::standard((5, 5).into()),
+                    Move::standard((6, 6).into()),
+                    Move::standard((7, 7).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((0, 0))]
+                vec![Move::standard((0, 0).into())]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((0, 2))]
+                vec![Move::standard((0, 2).into())]
             );
         }
 
@@ -3147,23 +3147,23 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((2, 0))]
+                vec![Move::standard((2, 0).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
                 vec![
-                    Move::standard((2, 2)),
-                    Move::standard((3, 3)),
-                    Move::standard((4, 4)),
+                    Move::standard((2, 2).into()),
+                    Move::standard((3, 3).into()),
+                    Move::standard((4, 4).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((0, 0))]
+                vec![Move::standard((0, 0).into())]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((0, 2))]
+                vec![Move::standard((0, 2).into())]
             );
         }
 
@@ -3200,24 +3200,24 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((2, 0))]
+                vec![Move::standard((2, 0).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
                 vec![
-                    Move::standard((2, 2)),
-                    Move::standard((3, 3)),
-                    Move::standard((4, 4)),
-                    Move::standard((5, 5)),
+                    Move::standard((2, 2).into()),
+                    Move::standard((3, 3).into()),
+                    Move::standard((4, 4).into()),
+                    Move::standard((5, 5).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((0, 0))]
+                vec![Move::standard((0, 0).into())]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((0, 2))]
+                vec![Move::standard((0, 2).into())]
             );
         }
     }
@@ -3254,35 +3254,35 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((0, 3))]
+                vec![Move::standard((0, 3).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((4, 1))]
+                vec![Move::standard((4, 1).into())]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((4, 3))]
+                vec![Move::standard((4, 3).into())]
             );
             assert_eq!(
                 valid_moves[4].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
             assert_eq!(
                 valid_moves[5].legal_path_vec(),
-                vec![Move::standard((1, 4))]
+                vec![Move::standard((1, 4).into())]
             );
             assert_eq!(
                 valid_moves[6].legal_path_vec(),
-                vec![Move::standard((3, 0))]
+                vec![Move::standard((3, 0).into())]
             );
             assert_eq!(
                 valid_moves[7].legal_path_vec(),
-                vec![Move::standard((3, 4))]
+                vec![Move::standard((3, 4).into())]
             );
         }
 
@@ -3300,11 +3300,11 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((2, 1))]
+                vec![Move::standard((2, 1).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((1, 2))]
+                vec![Move::standard((1, 2).into())]
             );
         }
 
@@ -3345,35 +3345,35 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((0, 3))]
+                vec![Move::standard((0, 3).into())]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((4, 1))]
+                vec![Move::standard((4, 1).into())]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((4, 3))]
+                vec![Move::standard((4, 3).into())]
             );
             assert_eq!(
                 valid_moves[4].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
             assert_eq!(
                 valid_moves[5].legal_path_vec(),
-                vec![Move::standard((1, 4))]
+                vec![Move::standard((1, 4).into())]
             );
             assert_eq!(
                 valid_moves[6].legal_path_vec(),
-                vec![Move::standard((3, 0))]
+                vec![Move::standard((3, 0).into())]
             );
             assert_eq!(
                 valid_moves[7].legal_path_vec(),
-                vec![Move::standard((3, 4))]
+                vec![Move::standard((3, 4).into())]
             );
         }
 
@@ -3405,25 +3405,25 @@ mod piece_tests {
             assert_eq!(valid_moves[0].legal_path_vec(), vec![]);
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
-                vec![Move::standard((0, 3))]
+                vec![Move::standard((0, 3).into())]
             );
             assert_eq!(valid_moves[2].legal_path_vec(), vec![]);
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((4, 3))]
+                vec![Move::standard((4, 3).into())]
             );
             assert_eq!(
                 valid_moves[4].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
             assert_eq!(
                 valid_moves[5].legal_path_vec(),
-                vec![Move::standard((1, 4))]
+                vec![Move::standard((1, 4).into())]
             );
             assert_eq!(valid_moves[6].legal_path_vec(), vec![]);
             assert_eq!(
                 valid_moves[7].legal_path_vec(),
-                vec![Move::standard((3, 4))]
+                vec![Move::standard((3, 4).into())]
             );
         }
     }
@@ -3476,33 +3476,33 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
                 vec![
-                    Move::standard((2, 1)),
-                    Move::standard((3, 1)),
-                    Move::standard((4, 1)),
-                    Move::standard((5, 1)),
-                    Move::standard((6, 1)),
-                    Move::standard((7, 1)),
+                    Move::standard((2, 1).into()),
+                    Move::standard((3, 1).into()),
+                    Move::standard((4, 1).into()),
+                    Move::standard((5, 1).into()),
+                    Move::standard((6, 1).into()),
+                    Move::standard((7, 1).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
                 vec![
-                    Move::standard((1, 2)),
-                    Move::standard((1, 3)),
-                    Move::standard((1, 4)),
-                    Move::standard((1, 5)),
-                    Move::standard((1, 6)),
-                    Move::standard((1, 7)),
+                    Move::standard((1, 2).into()),
+                    Move::standard((1, 3).into()),
+                    Move::standard((1, 4).into()),
+                    Move::standard((1, 5).into()),
+                    Move::standard((1, 6).into()),
+                    Move::standard((1, 7).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
         }
 
@@ -3561,22 +3561,22 @@ mod piece_tests {
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
                 vec![
-                    Move::standard((5, 4)),
-                    Move::standard((6, 4)),
-                    Move::standard((7, 4)),
+                    Move::standard((5, 4).into()),
+                    Move::standard((6, 4).into()),
+                    Move::standard((7, 4).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
                 vec![
-                    Move::standard((4, 5)),
-                    Move::standard((4, 6)),
-                    Move::standard((4, 7)),
+                    Move::standard((4, 5).into()),
+                    Move::standard((4, 6).into()),
+                    Move::standard((4, 7).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((4, 3))]
+                vec![Move::standard((4, 3).into())]
             );
         }
 
@@ -3623,24 +3623,24 @@ mod piece_tests {
 
             assert_eq!(
                 valid_moves[0].legal_path_vec(),
-                vec![Move::standard((0, 1))]
+                vec![Move::standard((0, 1).into())]
             );
             assert_eq!(
                 valid_moves[1].legal_path_vec(),
                 vec![
-                    Move::standard((2, 1)),
-                    Move::standard((3, 1)),
-                    Move::standard((4, 1)),
-                    Move::standard((5, 1)),
+                    Move::standard((2, 1).into()),
+                    Move::standard((3, 1).into()),
+                    Move::standard((4, 1).into()),
+                    Move::standard((5, 1).into()),
                 ]
             );
             assert_eq!(
                 valid_moves[2].legal_path_vec(),
-                vec![Move::standard((1, 2)), Move::standard((1, 3)),]
+                vec![Move::standard((1, 2).into()), Move::standard((1, 3).into()),]
             );
             assert_eq!(
                 valid_moves[3].legal_path_vec(),
-                vec![Move::standard((1, 0))]
+                vec![Move::standard((1, 0).into())]
             );
         }
     }

@@ -196,7 +196,7 @@ impl AllValidMoves {
     }
 
     pub fn contains(&self, piece_id: Entity, square: Square) -> bool {
-        self.get(piece_id).iter().any(|m| m.x == square.x_rank && m.y == square.y_file)
+        self.get(piece_id).iter().any(|m| m.square == square)
     }
 }
 
@@ -495,7 +495,7 @@ pub fn move_piece(
         let valid_moves = all_valid_moves.get(piece_id);
         let maybe_valid_move = valid_moves
             .into_iter()
-            .find(|m| m.x == square.x_rank && m.y == square.y_file);
+            .find(|m| m.square == *square);
         if let Some(valid_move) = maybe_valid_move {
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
             let _ = special_move_data.last_pawn_double_step.take();
@@ -510,7 +510,7 @@ pub fn move_piece(
                             pawn_id: piece_id,
                             square: *square
                         });
-                } else if valid_move.x == player_turn.0.final_rank() {
+                } else if valid_move.square.x_rank == player_turn.0.final_rank() {
                     promoted_pawn.0 = Some(piece_id);
                 }
             } else if piece.kind == PieceKind::King {

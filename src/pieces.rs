@@ -185,8 +185,8 @@ impl PiecePath {
             .iter()
             .filter_map(|potential_move| {
                 potential_move.blocked_by.map(|blockage| Obstruction {
-                    x: potential_move.move_.x,
-                    y: potential_move.move_.y,
+                    x: potential_move.move_.square.x_rank,
+                    y: potential_move.move_.square.y_file,
                     colour: blockage,
                 })
             })
@@ -196,7 +196,7 @@ impl PiecePath {
     pub fn contains(&self, square: Square) -> bool {
         self.potential_moves
             .iter()
-            .any(|potential| potential.move_.x == square.x_rank && potential.move_.y == square.y_file)
+            .any(|potential| potential.move_.square == square)
     }
 
     pub fn truncate_to(&self, square: Square) -> Option<Self> {
@@ -211,7 +211,7 @@ impl PiecePath {
                             return None;
                         };
 
-                        *done = p_move.move_.x == square.x_rank && p_move.move_.y == square.y_file;
+                        *done = p_move.move_.square == square;
                         Some(p_move)
                     })
                     .copied()
@@ -235,7 +235,7 @@ pub struct PawnMoves {
 impl Piece {
     pub fn valid_moves(&self, board: &BoardState) -> Vec<PiecePath> {
         let potential_move = |(x, y): (u8, u8)| PotentialMove {
-            move_: Move::standard((x, y)),
+            move_: Move::standard((x, y).into()),
             blocked_by: *board.get((x, y).into()),
         };
 
@@ -419,7 +419,7 @@ impl Piece {
             let move_two = (rank + (2 * direction)) as u8;
 
             let advance_one = board.get((move_one, file).into()).is_none().then_some(PotentialMove {
-                move_: Move::standard((move_one, file)),
+                move_: Move::standard((move_one, file).into()),
                 blocked_by: None,
             });
 
@@ -427,7 +427,7 @@ impl Piece {
                 && board.get((move_one, file).into()).is_none()
                 && board.get((move_two, file).into()).is_none())
             .then_some(PotentialMove {
-                move_: Move::pawn_double_step(move_two, file),
+                move_: Move::pawn_double_step((move_two, file).into()),
                 blocked_by: None,
             });
 
@@ -436,7 +436,7 @@ impl Piece {
             let attack_left =
                 (file != 0 && (attack_empty_squares || left_diagonal_occupied())).then(|| {
                     PotentialMove {
-                        move_: Move::standard((move_one, file - 1)),
+                        move_: Move::standard((move_one, file - 1).into()),
                         blocked_by: None,
                     }
                 });
@@ -445,7 +445,7 @@ impl Piece {
                 || board.get((move_one, file + 1).into()).contains(&self.colour.opposite());
             let attack_right = (file != 7 && (attack_empty_squares || right_diagonal_occupied()))
                 .then(|| PotentialMove {
-                    move_: Move::standard((move_one, file + 1)),
+                    move_: Move::standard((move_one, file + 1).into()),
                     blocked_by: None,
                 });
 
