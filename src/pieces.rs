@@ -690,10 +690,9 @@ fn place_on_square(colour: PieceColour, square: Square) -> Transform {
     let scale = Transform::from_scale(Vec3::splat(SCALE_FACTOR));
     let rotation = Transform::from_rotation(Quat::from_rotation_y(angle));
 
-    let base_translation = Transform::from_translation(Vec3::new(-0.5, 0.0, -0.5));
     let translation = Transform::from_translation(square.to_translation());
 
-    translation * base_translation * rotation * scale
+    translation * rotation * scale
 }
 
 struct PieceMeshes {

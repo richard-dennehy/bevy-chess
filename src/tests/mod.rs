@@ -1493,7 +1493,55 @@ mod board_tests {
         #[test]
         fn a_pawn_on_an_edge_of_the_board_double_stepping_should_not_cause_overflow_when_checking_for_en_passant(
         ) {
-            todo!()
+            let (mut world, mut stage) = setup();
+
+            world.spawn().insert(Piece::black(PieceKind::King, Square::new(7, 4)));
+            world.spawn().insert(Piece::white(PieceKind::King, Square::new(0, 4)));
+
+            let black_pawn = world
+                .spawn()
+                .insert(Piece::black(PieceKind::Pawn, Square::new(6, 0)))
+                .id();
+
+            let white_pawn = world
+                .spawn()
+                .insert(Piece::white(PieceKind::Pawn, Square::new(4, 1)))
+                .id();
+
+            let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
+            special_moves.black_castling_data.king_moved = true;
+            special_moves.white_castling_data.king_moved = true;
+
+            stage.run(&mut world);
+
+            world.move_piece(black_pawn, (4, 0).into());
+            stage.run(&mut world);
+
+            let special_moves = world.get_resource::<SpecialMoveData>().unwrap();
+            assert_eq!(
+                &special_moves.last_pawn_double_step,
+                &Some(LastPawnDoubleStep {
+                    pawn_id: black_pawn,
+                    square: (4, 0).into(),
+                })
+            );
+
+            assert_eq!(
+                world.get_resource::<State<GameState>>().unwrap().current(),
+                &GameState::NothingSelected
+            );
+
+            stage.run(&mut world);
+
+            world.move_piece(white_pawn, (5, 0).into());
+            stage.run(&mut world);
+
+            assert!(world
+                .get_resource::<SpecialMoveData>()
+                .unwrap()
+                .last_pawn_double_step
+                .is_none());
+            assert!(world.get::<Taken>(black_pawn).is_some())
         }
 
         #[test]

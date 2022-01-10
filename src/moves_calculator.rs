@@ -219,10 +219,15 @@ impl<'game> MoveCalculator<'game> {
     fn find_en_passant_pieces(&self) -> (Option<EnPassantMove>, Option<EnPassantMove>) {
         if let Some(pawn_double_step) = &self.special_move_data.last_pawn_double_step {
             let find_pawn_in_column = |offset: i8| {
+                let expected_y = pawn_double_step.square.y_file as i8 + offset;
+                if expected_y < 0 || expected_y > 7 {
+                    return None;
+                };
+
                 self.player_pieces.iter().find_map(|(entity, piece)| {
                     let expected_square = Square::new(
                         pawn_double_step.square.x_rank,
-                        (pawn_double_step.square.y_file as i8 + offset) as u8,
+                        expected_y as u8,
                     );
                     (piece.kind == PieceKind::Pawn
                         && piece.square == expected_square
