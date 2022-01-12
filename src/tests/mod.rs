@@ -941,8 +941,8 @@ mod board_tests {
                 assert!(
                     all_valid_moves.contains(piece_id, square),
                     "({}, {}) is not a valid move; valid moves: {:?}",
-                    square.x_rank,
-                    square.y_file,
+                    square.rank,
+                    square.file,
                     piece_moves
                 );
 
@@ -982,8 +982,8 @@ mod board_tests {
             (0..8).for_each(|x| {
                 (0..8).for_each(|y| {
                     world.spawn().insert(Square {
-                        x_rank: x,
-                        y_file: y,
+                        rank: x,
+                        file: y,
                     });
                 })
             });
@@ -1581,12 +1581,12 @@ mod board_tests {
             stage.run(&mut world);
 
             let black_king = world.get::<Piece>(black_king).unwrap();
-            assert_eq!(black_king.square.x_rank, 7);
-            assert_eq!(black_king.square.y_file, 2);
+            assert_eq!(black_king.square.rank, 7);
+            assert_eq!(black_king.square.file, 2);
 
             let black_rook = world.get::<Piece>(black_rook).unwrap();
-            assert_eq!(black_rook.square.x_rank, 7);
-            assert_eq!(black_rook.square.y_file, 3);
+            assert_eq!(black_rook.square.rank, 7);
+            assert_eq!(black_rook.square.file, 3);
         }
 
         #[test]
@@ -1629,12 +1629,12 @@ mod board_tests {
             stage.run(&mut world);
 
             let white_king = world.get::<Piece>(white_king).unwrap();
-            assert_eq!(white_king.square.x_rank, 0);
-            assert_eq!(white_king.square.y_file, 6);
+            assert_eq!(white_king.square.rank, 0);
+            assert_eq!(white_king.square.file, 6);
 
             let white_rook = world.get::<Piece>(white_rook).unwrap();
-            assert_eq!(white_rook.square.x_rank, 0);
-            assert_eq!(white_rook.square.y_file, 5);
+            assert_eq!(white_rook.square.rank, 0);
+            assert_eq!(white_rook.square.file, 5);
         }
 
         #[test]

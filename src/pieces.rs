@@ -184,7 +184,7 @@ impl PiecePath {
             .iter()
             .filter_map(|potential_move| {
                 potential_move.blocked_by.map(|blockage| Obstruction {
-                    square: potential_move.square,
+                    square: potential_move.target_square,
                     colour: blockage,
                 })
             })
@@ -194,7 +194,7 @@ impl PiecePath {
     pub fn contains(&self, square: Square) -> bool {
         self.potential_moves
             .iter()
-            .any(|potential| potential.square == square)
+            .any(|potential| potential.target_square == square)
     }
 
     pub fn truncate_to(&self, square: Square) -> Option<Self> {
@@ -209,7 +209,7 @@ impl PiecePath {
                             return None;
                         };
 
-                        *done = p_move.square == square;
+                        *done = p_move.target_square == square;
                         Some(p_move)
                     })
                     .copied()
@@ -234,50 +234,50 @@ impl Piece {
     pub fn valid_moves(&self, board: &BoardState) -> Vec<PiecePath> {
         let potential_move = |(x, y): (u8, u8)| PotentialMove {
             kind: MoveKind::Standard,
-            square: (x, y).into(),
+            target_square: (x, y).into(),
             blocked_by: *board.get((x, y).into()),
         };
 
         let up = || {
             PiecePath::from_iterator(
-                ((self.square.x_rank + 1)..8)
-                    .map(|new_rank| potential_move((new_rank, self.square.y_file))),
+                ((self.square.rank + 1)..8)
+                    .map(|new_rank| potential_move((new_rank, self.square.file))),
                 self.colour,
             )
         };
 
         let down = || {
             PiecePath::from_iterator(
-                (0..self.square.x_rank)
+                (0..self.square.rank)
                     .rev()
-                    .map(|new_rank| potential_move((new_rank, self.square.y_file))),
+                    .map(|new_rank| potential_move((new_rank, self.square.file))),
                 self.colour,
             )
         };
 
         let left = || {
             PiecePath::from_iterator(
-                (0..self.square.y_file)
+                (0..self.square.file)
                     .rev()
-                    .map(|new_file| potential_move((self.square.x_rank, new_file))),
+                    .map(|new_file| potential_move((self.square.rank, new_file))),
                 self.colour,
             )
         };
 
         let right = || {
             PiecePath::from_iterator(
-                ((self.square.y_file + 1)..8)
-                    .map(|new_rank| potential_move((self.square.x_rank, new_rank))),
+                ((self.square.file + 1)..8)
+                    .map(|new_rank| potential_move((self.square.rank, new_rank))),
                 self.colour,
             )
         };
 
         let up_left = || {
             PiecePath::from_iterator(
-                ((self.square.x_rank + 1)..8)
+                ((self.square.rank + 1)..8)
                     .filter_map(|new_rank| {
-                        let diff = self.square.x_rank.abs_diff(new_rank);
-                        (diff <= self.square.y_file).then(|| (new_rank, self.square.y_file - diff))
+                        let diff = self.square.rank.abs_diff(new_rank);
+                        (diff <= self.square.file).then(|| (new_rank, self.square.file - diff))
                     })
                     .map(potential_move),
                 self.colour,
@@ -286,9 +286,9 @@ impl Piece {
 
         let up_right = || {
             PiecePath::from_iterator(
-                ((self.square.x_rank + 1)..8)
+                ((self.square.rank + 1)..8)
                     .filter_map(|new_rank| {
-                        let new_file = self.square.y_file + self.square.x_rank.abs_diff(new_rank);
+                        let new_file = self.square.file + self.square.rank.abs_diff(new_rank);
                         (new_file < 8).then(|| (new_rank, new_file))
                     })
                     .map(potential_move),
@@ -298,11 +298,11 @@ impl Piece {
 
         let down_left = || {
             PiecePath::from_iterator(
-                (0..self.square.x_rank)
+                (0..self.square.rank)
                     .rev()
                     .filter_map(|new_rank| {
-                        let diff = self.square.x_rank.abs_diff(new_rank);
-                        (diff <= self.square.y_file).then(|| (new_rank, self.square.y_file - diff))
+                        let diff = self.square.rank.abs_diff(new_rank);
+                        (diff <= self.square.file).then(|| (new_rank, self.square.file - diff))
                     })
                     .map(potential_move),
                 self.colour,
@@ -311,10 +311,10 @@ impl Piece {
 
         let down_right = || {
             PiecePath::from_iterator(
-                (0..self.square.x_rank)
+                (0..self.square.rank)
                     .rev()
                     .filter_map(|new_rank| {
-                        let new_file = self.square.y_file + self.square.x_rank.abs_diff(new_rank);
+                        let new_file = self.square.file + self.square.rank.abs_diff(new_rank);
                         (new_file < 8).then(|| (new_rank, new_file))
                     })
                     .map(potential_move),
@@ -322,7 +322,7 @@ impl Piece {
             )
         };
 
-        let (rank, file) = (self.square.x_rank as i8, self.square.y_file as i8);
+        let (rank, file) = (self.square.rank as i8, self.square.file as i8);
 
         let is_on_board = |(rank, file): (i8, i8)| {
             ((0..8).contains(&rank) && (0..8).contains(&file)).then(|| (rank as u8, file as u8))
@@ -403,11 +403,11 @@ impl Piece {
             panic!("{:?} is not a pawn", self)
         };
 
-        let rank = self.square.x_rank as i8;
-        let file = self.square.y_file;
+        let rank = self.square.rank as i8;
+        let file = self.square.file;
         let direction = self.colour.pawn_direction();
 
-        if self.square.x_rank == self.colour.final_rank() {
+        if self.square.rank == self.colour.final_rank() {
             PawnMoves {
                 advance_one: None,
                 advance_two: None,
@@ -428,7 +428,7 @@ impl Piece {
                         None,
                     ));
 
-            let advance_two = (self.square.x_rank == self.colour.starting_front_rank()
+            let advance_two = (self.square.rank == self.colour.starting_front_rank()
                 && board.get((move_one, file).into()).is_none()
                 && board.get((move_two, file).into()).is_none())
             .then_some(PotentialMove::new(
@@ -533,78 +533,56 @@ fn create_board(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn create_pieces(mut commands: Commands, meshes: Res<PieceMeshes>, materials: Res<PieceMaterials>) {
-    spawn_side(
-        &mut commands,
-        &meshes,
-        materials.white.clone(),
-        PieceColour::White,
-    );
-    spawn_side(
-        &mut commands,
-        &meshes,
-        materials.black.clone(),
-        PieceColour::Black,
-    );
-}
+    [PieceColour::White, PieceColour::Black].into_iter().for_each(|colour| {
+        let back_row = colour.starting_back_rank();
+        let front_row = colour.starting_front_rank();
 
-fn spawn_side(
-    commands: &mut Commands,
-    meshes: &PieceMeshes,
-    material: Handle<StandardMaterial>,
-    colour: PieceColour,
-) {
-    let back_row = colour.starting_back_rank();
-    let front_row = colour.starting_front_rank();
+        [
+            PieceKind::Rook,
+            PieceKind::Knight,
+            PieceKind::Bishop,
+            PieceKind::Queen,
+            PieceKind::King,
+            PieceKind::Bishop,
+            PieceKind::Knight,
+            PieceKind::Rook,
+        ]
+            .into_iter()
+            .enumerate()
+            .for_each(|(file, kind)| {
+                spawn_piece(
+                    &mut commands,
+                    &materials,
+                    &meshes,
+                    colour,
+                    kind,
+                    (back_row, file as u8).into(),
+                );
+            });
 
-    [
-        PieceKind::Rook,
-        PieceKind::Knight,
-        PieceKind::Bishop,
-        PieceKind::Queen,
-        PieceKind::King,
-        PieceKind::Bishop,
-        PieceKind::Knight,
-        PieceKind::Rook,
-    ]
-    .into_iter()
-    .enumerate()
-    .for_each(|(file, kind)| {
-        spawn_piece(
-            commands,
-            material.clone(),
-            meshes.get(kind),
-            colour,
-            kind,
-            (back_row, file as u8).into(),
-        );
-    });
-
-    (0..=7).for_each(|file| {
-        spawn_piece(
-            commands,
-            material.clone(),
-            meshes.get(PieceKind::Pawn),
-            colour,
-            PieceKind::Pawn,
-            (front_row, file).into(),
-        );
+        (0..=7).for_each(|file| {
+            spawn_piece(
+                &mut commands,
+                &materials,
+                &meshes,
+                colour,
+                PieceKind::Pawn,
+                (front_row, file).into(),
+            );
+        });
     });
 }
 
 fn spawn_piece(
     commands: &mut Commands,
-    material: Handle<StandardMaterial>,
-    mesh: Handle<Mesh>,
+    materials: &PieceMaterials,
+    meshes: &PieceMeshes,
     colour: PieceColour,
     kind: PieceKind,
     square: Square,
 ) -> Entity {
     commands
-        // TODO does this need to be a PBR?
-        .spawn_bundle(PbrBundle {
-            transform: place_on_square(colour, square),
-            ..Default::default()
-        })
+        .spawn_bundle((place_on_square(colour, square), GlobalTransform::identity()))
         .insert(Piece {
             colour,
             kind,
@@ -612,8 +590,8 @@ fn spawn_piece(
         })
         .with_children(|parent| {
             parent.spawn_bundle(PbrBundle {
-                mesh,
-                material,
+                mesh: meshes.get(kind),
+                material: materials.get(colour),
                 ..Default::default()
             });
         })
@@ -680,8 +658,8 @@ fn promote_pawn_at_final_rank(
 
     let new_entity = spawn_piece(
         &mut commands,
-        materials.get(turn.0),
-        meshes.get(new_kind),
+        &materials,
+        &meshes,
         turn.0,
         new_kind,
         square,

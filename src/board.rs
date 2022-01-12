@@ -67,7 +67,7 @@ pub struct BoardState {
 
 impl BoardState {
     pub fn get(&self, square: Square) -> &Option<PieceColour> {
-        &self.squares[(square.x_rank * 8 + square.y_file) as usize]
+        &self.squares[(square.rank * 8 + square.file) as usize]
     }
 
     #[cfg(test)]
@@ -92,7 +92,7 @@ impl<'piece> FromIterator<&'piece Piece> for BoardState {
     fn from_iter<T: IntoIterator<Item = &'piece Piece>>(pieces: T) -> Self {
         let mut squares = [None; 64];
         pieces.into_iter().for_each(|piece| {
-            squares[(piece.square.x_rank * 8 + piece.square.y_file) as usize] = Some(piece.colour);
+            squares[(piece.square.rank * 8 + piece.square.file) as usize] = Some(piece.colour);
         });
 
         Self { squares }
@@ -101,8 +101,8 @@ impl<'piece> FromIterator<&'piece Piece> for BoardState {
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Square {
-    pub x_rank: u8,
-    pub y_file: u8,
+    pub rank: u8,
+    pub file: u8,
 }
 
 impl Square {
@@ -110,19 +110,19 @@ impl Square {
         assert!(rank <= 7 && file <= 7, "({}, {}) is out of bounds", rank, file);
 
         Self {
-            x_rank: rank,
-            y_file: file,
+            rank: rank,
+            file: file,
         }
     }
 
     pub fn from_translation(translation: Vec3) -> Self {
         let rank = (translation.z + 3.5).round() as u8;
         let file = (translation.x + 3.5).round() as u8;
-        Self { x_rank: rank, y_file: file }
+        Self { rank: rank, file: file }
     }
 
     pub fn to_translation(self) -> Vec3 {
-        (self.y_file as f32 - 3.5, 0.0, self.x_rank as f32 - 3.5).into()
+        (self.file as f32 - 3.5, 0.0, self.rank as f32 - 3.5).into()
     }
 }
 
@@ -196,7 +196,7 @@ impl AllValidMoves {
     }
 
     pub fn contains(&self, piece_id: Entity, square: Square) -> bool {
-        self.get(piece_id).iter().any(|m| m.square == square)
+        self.get(piece_id).iter().any(|m| m.target_square == square)
     }
 }
 
@@ -278,7 +278,7 @@ fn create_board(
 
     (0..8).for_each(|rank| {
         (0..8).for_each(|file| {
-            let square = Square { x_rank: rank, y_file: file };
+            let square = Square { rank: rank, file: file };
 
             commands
                 .spawn_bundle(PbrBundle {
@@ -495,7 +495,7 @@ pub fn move_piece(
         let valid_moves = all_valid_moves.get(piece_id);
         let maybe_valid_move = valid_moves
             .into_iter()
-            .find(|m| m.square == *square);
+            .find(|m| m.target_square == *square);
         if let Some(valid_move) = maybe_valid_move {
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
             let _ = special_move_data.last_pawn_double_step.take();
@@ -510,7 +510,7 @@ pub fn move_piece(
                             pawn_id: piece_id,
                             square: *square
                         });
-                } else if valid_move.square.x_rank == player_turn.0.final_rank() {
+                } else if valid_move.target_square.rank == player_turn.0.final_rank() {
                     promoted_pawn.0 = Some(piece_id);
                 }
             } else if piece.kind == PieceKind::King {
@@ -524,9 +524,9 @@ pub fn move_piece(
                     kingside,
                 } = valid_move.kind
                 {
-                    commands.entity(piece_id).insert(MovePiece::new((square.x_rank, king_target_y).into()));
+                    commands.entity(piece_id).insert(MovePiece::new((square.rank, king_target_y).into()));
 
-                    commands.entity(rook_id).insert(MovePiece::new((square.x_rank, rook_target_y).into()));
+                    commands.entity(rook_id).insert(MovePiece::new((square.rank, rook_target_y).into()));
 
                     if kingside {
                         castling_data.kingside_rook_moved = true;
@@ -540,9 +540,9 @@ pub fn move_piece(
             } else if piece.kind == PieceKind::Rook {
                 let mut castling_data = special_move_data.castling_data_mut(player_turn.0);
 
-                if piece.square.y_file == 0 {
+                if piece.square.file == 0 {
                     castling_data.queenside_rook_moved = true;
-                } else if piece.square.y_file == 7 {
+                } else if piece.square.file == 7 {
                     castling_data.kingside_rook_moved = true;
                 }
             }
@@ -555,11 +555,11 @@ pub fn move_piece(
                         let other_player = player_turn.0.opposite();
                         let mut castling_data = special_move_data.castling_data_mut(other_player);
 
-                        if target_piece.square.x_rank == other_player.starting_back_rank() && target_piece.square.y_file == 0
+                        if target_piece.square.rank == other_player.starting_back_rank() && target_piece.square.file == 0
                         {
                             castling_data.queenside_rook_moved = true;
-                        } else if target_piece.square.x_rank == other_player.starting_back_rank()
-                            && target_piece.square.y_file == 7
+                        } else if target_piece.square.rank == other_player.starting_back_rank()
+                            && target_piece.square.file == 7
                         {
                             castling_data.kingside_rook_moved = true;
                         }
