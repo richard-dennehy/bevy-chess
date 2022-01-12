@@ -1,6 +1,5 @@
  - Add orbit camera (see https://github.com/bonsairobo/smooth-bevy-cameras)
  - Fancier piece movement (easing, y movement)
- - Check stalemate (no valid moves i.e. King not in check, but can't move)
  - Experiment with using `#[path]` to better map test modules to files
  - Break up the test suite into something sane
  - Split bevy systems from generic logic

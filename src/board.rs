@@ -1,5 +1,5 @@
 use crate::moves_calculator;
-use crate::moves_calculator::{Move, MoveKind};
+use crate::moves_calculator::{CalculatorResult, Move, MoveKind};
 use crate::pieces::{Piece, PieceColour, PieceKind};
 use bevy::prelude::*;
 use bevy::utils::HashMap;
@@ -181,22 +181,28 @@ pub struct CastlingData {
 }
 
 // todo circular dependency between move calculator and board module isn't ideal
-#[derive(Default)]
-pub struct AllValidMoves(HashMap<Entity, Vec<Move>>);
+#[derive(Default, Debug)]
+pub struct AllValidMoves {
+    _0: HashMap<Entity, Vec<Move>>,
+}
 
 impl AllValidMoves {
     pub fn get(&self, piece_id: Entity) -> &Vec<Move> {
-        self.0
+        self._0
             .get(&piece_id)
             .expect("all pieces should have moves calculated")
     }
 
     pub fn insert(&mut self, piece_id: Entity, moves: Vec<Move>) {
-        self.0.insert(piece_id, moves);
+        self._0.insert(piece_id, moves);
     }
 
     pub fn contains(&self, piece_id: Entity, square: Square) -> bool {
         self.get(piece_id).iter().any(|m| m.target_square == square)
+    }
+
+    pub fn clear(&mut self) {
+        self._0.iter_mut().for_each(|(_, moves)| moves.clear())
     }
 }
 
@@ -232,6 +238,7 @@ pub enum GameState {
     TargetSquareSelected,
     MovingPiece,
     Checkmate(PieceColour),
+    Stalemate(PieceColour),
     PawnPromotion,
 }
 
@@ -247,6 +254,9 @@ impl core::fmt::Display for GameState {
             }
             GameState::Checkmate(colour) => {
                 write!(f, "{}'s King is in checkmate\nPress R to restart", colour)
+            }
+            GameState::Stalemate(colour) => {
+                write!(f, "Stalemate: {} cannot make any moves\nPress R to restart", colour)
             }
             GameState::PawnPromotion => {
                 write!(f, "A pawn can be promoted\nPress Left/Right to cycle between options and Enter to confirm promotion")
@@ -392,22 +402,25 @@ pub fn calculate_all_moves(
         .iter()
         .partition(|(_, piece)| piece.colour == player_turn.0);
 
-    let valid_moves = moves_calculator::calculate_valid_moves(
+    match moves_calculator::calculate_valid_moves(
         player_turn.0,
         &special_move_data,
         player_pieces.as_slice(),
         opposite_pieces.as_slice(),
         board_state,
-    );
-    *all_moves = valid_moves;
-
-    // FIXME doesn't handle stalemate properly
-    if player_pieces
-        .into_iter()
-        .all(|(entity, _)| all_moves.get(entity).is_empty())
-    {
-        game_state.set(GameState::Checkmate(player_turn.0)).unwrap();
-    };
+    ) {
+        CalculatorResult::Stalemate => {
+            game_state.set(GameState::Stalemate(player_turn.0)).unwrap();
+        }
+        CalculatorResult::Checkmate => {
+            game_state.set(GameState::Checkmate(player_turn.0)).unwrap();
+        }
+        CalculatorResult::Ok(valid_moves) => {
+            valid_moves._0.into_iter().for_each(|(k, v)| {
+                all_moves.insert(k, v);
+            });
+        }
+    }
 }
 
 fn select_square(
@@ -585,7 +598,7 @@ fn reset_selected(
 ) {
     selected_square.0 = None;
     selected_piece.0 = None;
-    valid_moves.0.clear();
+    valid_moves.clear();
     *highlighted = None;
 }
 

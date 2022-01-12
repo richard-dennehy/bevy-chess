@@ -95,13 +95,19 @@ pub enum MoveKind {
     },
 }
 
+pub enum CalculatorResult {
+    Stalemate,
+    Checkmate,
+    Ok(AllValidMoves),
+}
+
 pub fn calculate_valid_moves(
     turn: PieceColour,
     special_move_data: &SpecialMoveData,
     player_pieces: &[(Entity, &Piece)],
     opposite_pieces: &[(Entity, &Piece)],
     board_state: BoardState,
-) -> AllValidMoves {
+) -> CalculatorResult {
     let (king_entity, king) = player_pieces
         .iter()
         .find(|(_, piece)| piece.kind == PieceKind::King)
@@ -168,7 +174,7 @@ impl AllPotentialMoves {
 }
 
 impl<'game> MoveCalculator<'game> {
-    fn calculate_valid_moves(self) -> AllValidMoves {
+    fn calculate_valid_moves(self) -> CalculatorResult {
         let mut all_potential_moves = AllPotentialMoves::new();
 
         let (mut en_passant_left, mut en_passant_right) = self.find_en_passant_pieces();
@@ -199,17 +205,26 @@ impl<'game> MoveCalculator<'game> {
             let counter_moves =
                 self.calculate_check_counter_moves(pieces_attacking_king, &all_potential_moves);
 
-            let mut all_moves = AllValidMoves::default();
-            counter_moves.into_iter().for_each(|(entity, moves)| {
-                let _ = all_moves.insert(entity, moves);
-            });
-            all_moves
+            if counter_moves.iter().all(|(_, moves)| moves.is_empty()) {
+                CalculatorResult::Checkmate
+            } else {
+                let mut all_moves = AllValidMoves::default();
+                counter_moves.into_iter().for_each(|(entity, moves)| {
+                    let _ = all_moves.insert(entity, moves);
+                });
+
+                CalculatorResult::Ok(all_moves)
+            }
         } else {
             let safe_player_moves = self.calculate_safe_player_moves(&all_potential_moves);
 
             let mut safe_king_moves = self.calculate_safe_king_moves(&all_potential_moves);
             let mut castling_moves = self.calculate_castling_moves(&all_potential_moves);
             safe_king_moves.append(&mut castling_moves);
+
+            if safe_player_moves.iter().all(|(_, moves)| moves.is_empty()) && safe_king_moves.is_empty() {
+                return CalculatorResult::Stalemate;
+            }
 
             let mut all_moves = AllValidMoves::default();
 
@@ -218,7 +233,7 @@ impl<'game> MoveCalculator<'game> {
                 let _ = all_moves.insert(entity, moves);
             });
 
-            all_moves
+            CalculatorResult::Ok(all_moves)
         }
     }
 

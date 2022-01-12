@@ -145,7 +145,10 @@ mod board_tests {
             update_stage.run(&mut world);
             let valid_moves = world.get_resource::<AllValidMoves>().unwrap();
 
-            assert_eq!(valid_moves.get(king_id), &vec![Move::standard((6, 4).into())]);
+            assert_eq!(
+                valid_moves.get(king_id),
+                &vec![Move::standard((6, 4).into())]
+            );
             assert_eq!(valid_moves.get(rook_id), &vec![]);
             assert_eq!(valid_moves.get(knight_id), &vec![]);
             assert_eq!(valid_moves.get(queen_id), &vec![]);
@@ -155,18 +158,12 @@ mod board_tests {
         fn should_detect_checkmate_when_the_king_cannot_move_and_the_opposing_piece_cannot_be_taken_or_blocked(
         ) {
             let (mut world, mut update_stage) = setup();
-            let mut ids = vec![];
 
-            ids.push(
-                world
-                    .spawn()
-                    .insert(Piece {
-                        kind: PieceKind::King,
-                        colour: PieceColour::Black,
-                        square: (7, 4).into(),
-                    })
-                    .id(),
-            );
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                square: (7, 4).into(),
+            });
 
             // knight has king in check
             world.spawn().insert(Piece {
@@ -177,16 +174,11 @@ mod board_tests {
 
             // pieces blocking the king but tragically unable to take the knight
             let mut spawn_pawn = |x: u8, y: u8| {
-                ids.push(
-                    world
-                        .spawn()
-                        .insert(Piece {
-                            kind: PieceKind::Pawn,
-                            colour: PieceColour::Black,
-                            square: Square::new(x, y),
-                        })
-                        .id(),
-                );
+                world.spawn().insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    square: Square::new(x, y),
+                });
             };
 
             spawn_pawn(7, 3);
@@ -195,28 +187,13 @@ mod board_tests {
             spawn_pawn(6, 5);
 
             // can't place pawn here or it would be able to take the knight
-            ids.push(
-                world
-                    .spawn()
-                    .insert(Piece {
-                        kind: PieceKind::Rook,
-                        colour: PieceColour::Black,
-                        square: (6, 4).into(),
-                    })
-                    .id(),
-            );
+            world.spawn().insert(Piece {
+                kind: PieceKind::Rook,
+                colour: PieceColour::Black,
+                square: (6, 4).into(),
+            });
 
             update_stage.run(&mut world);
-
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            ids.into_iter().for_each(|id| {
-                assert!(
-                    all_valid_moves.get(id).is_empty(),
-                    "{:?}, {:?}",
-                    world.get_entity(id).unwrap().get::<Piece>(),
-                    all_valid_moves.get(id)
-                )
-            });
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(
@@ -273,7 +250,10 @@ mod board_tests {
             ids.into_iter()
                 .for_each(|id| assert!(all_valid_moves.get(id).is_empty()));
 
-            assert_eq!(all_valid_moves.get(pawn_id), &vec![Move::standard((5, 3).into())]);
+            assert_eq!(
+                all_valid_moves.get(pawn_id),
+                &vec![Move::standard((5, 3).into())]
+            );
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(game_state.current(), &GameState::NothingSelected);
@@ -282,18 +262,12 @@ mod board_tests {
         #[test]
         fn should_detect_checkmate_if_multiple_pieces_have_the_king_in_check() {
             let (mut world, mut update_stage) = setup();
-            let mut ids = vec![];
 
-            ids.push(
-                world
-                    .spawn()
-                    .insert(Piece {
-                        kind: PieceKind::King,
-                        colour: PieceColour::Black,
-                        square: (7, 4).into(),
-                    })
-                    .id(),
-            );
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                square: (7, 4).into(),
+            });
 
             // knight has king in check
             world.spawn().insert(Piece {
@@ -310,27 +284,20 @@ mod board_tests {
             });
 
             let mut spawn_pawn = |x: u8, y: u8| {
-                world
-                    .spawn()
-                    .insert(Piece {
-                        kind: PieceKind::Pawn,
-                        colour: PieceColour::Black,
-                        square: Square::new(x, y),
-                    })
-                    .id()
+                world.spawn().insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    square: Square::new(x, y),
+                });
             };
 
-            ids.push(spawn_pawn(7, 3));
-            ids.push(spawn_pawn(6, 3));
-            ids.push(spawn_pawn(7, 5));
-            ids.push(spawn_pawn(6, 5));
-            ids.push(spawn_pawn(6, 4));
+            spawn_pawn(7, 3);
+            spawn_pawn(6, 3);
+            spawn_pawn(7, 5);
+            spawn_pawn(6, 5);
+            spawn_pawn(6, 4);
 
             update_stage.run(&mut world);
-
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            ids.into_iter()
-                .for_each(|id| assert!(all_valid_moves.get(id).is_empty()));
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(
@@ -367,21 +334,21 @@ mod board_tests {
             update_stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(king_id), &vec![Move::standard((6, 4).into())]);
+            assert_eq!(
+                all_valid_moves.get(king_id),
+                &vec![Move::standard((6, 4).into())]
+            );
         }
 
         #[test]
         fn should_not_allow_the_king_to_take_a_piece_if_it_would_leave_the_king_in_check() {
             let (mut world, mut update_stage) = setup();
 
-            let black_king = world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::King,
-                    colour: PieceColour::Black,
-                    square: (3, 3).into(),
-                })
-                .id();
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                square: (3, 3).into(),
+            });
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Pawn,
@@ -411,8 +378,6 @@ mod board_tests {
 
             update_stage.run(&mut world);
 
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(black_king), &vec![]);
             assert_eq!(
                 world.get_resource::<State<GameState>>().unwrap().current(),
                 &GameState::Checkmate(PieceColour::Black)
@@ -422,18 +387,12 @@ mod board_tests {
         #[test]
         fn should_detect_checkmate_if_the_king_is_in_check_and_cannot_move_out_of_check() {
             let (mut world, mut update_stage) = setup();
-            let mut ids = vec![];
 
-            ids.push(
-                world
-                    .spawn()
-                    .insert(Piece {
-                        kind: PieceKind::King,
-                        colour: PieceColour::Black,
-                        square: (7, 4).into(),
-                    })
-                    .id(),
-            );
+            world.spawn().insert(Piece {
+                kind: PieceKind::King,
+                colour: PieceColour::Black,
+                square: (7, 4).into(),
+            });
 
             // bishop has king in check
             world.spawn().insert(Piece {
@@ -443,44 +402,24 @@ mod board_tests {
             });
 
             let mut spawn_pawn = |x: u8, y: u8| {
-                ids.push(
-                    world
-                        .spawn()
-                        .insert(Piece {
-                            kind: PieceKind::Pawn,
-                            colour: PieceColour::Black,
-                            square: Square::new(x, y),
-                        })
-                        .id(),
-                );
+                world.spawn().insert(Piece {
+                    kind: PieceKind::Pawn,
+                    colour: PieceColour::Black,
+                    square: Square::new(x, y),
+                });
             };
 
             spawn_pawn(7, 5);
             spawn_pawn(6, 5);
             spawn_pawn(6, 4);
 
-            ids.push(
-                world
-                    .spawn()
-                    .insert(Piece {
-                        kind: PieceKind::Bishop,
-                        colour: PieceColour::Black,
-                        square: (7, 3).into(),
-                    })
-                    .id(),
-            );
+            world.spawn().insert(Piece {
+                kind: PieceKind::Bishop,
+                colour: PieceColour::Black,
+                square: (7, 3).into(),
+            });
 
             update_stage.run(&mut world);
-
-            let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            ids.into_iter().for_each(|id| {
-                assert!(
-                    all_valid_moves.get(id).is_empty(),
-                    "{:?}, {:?}",
-                    world.get_entity(id).unwrap().get::<Piece>(),
-                    all_valid_moves.get(id)
-                )
-            });
 
             let game_state = world.get_resource::<State<GameState>>().unwrap();
             assert_eq!(
@@ -808,7 +747,45 @@ mod board_tests {
             update_stage.run(&mut world);
 
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
-            assert_eq!(all_valid_moves.get(king_id), &vec![Move::standard((7, 3).into()),]);
+            assert_eq!(
+                all_valid_moves.get(king_id),
+                &vec![Move::standard((7, 3).into()),]
+            );
+        }
+
+        #[test]
+        fn should_detect_stalemate_when_the_current_player_cannot_make_any_moves_but_is_not_in_check(
+        ) {
+            let (mut world, mut update_stage) = setup();
+
+            world
+                .spawn()
+                .insert(Piece::black(PieceKind::King, Square::new(7, 4)))
+                .id();
+            world
+                .spawn()
+                .insert(Piece::black(PieceKind::Pawn, Square::new(6, 3)))
+                .id();
+
+            // moving the pawn would put the king in check
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::Bishop, Square::new(4, 1)));
+            // prevent the king from moving elsewhere
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::Rook, Square::new(6, 7)));
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::Rook, Square::new(0, 5)));
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::Queen, Square::new(6, 2)));
+
+            update_stage.run(&mut world);
+
+            let state = world.get_resource::<State<GameState>>().unwrap();
+            assert_eq!(state.current(), &GameState::Stalemate(PieceColour::Black));
         }
 
         // see bug screenshots 1
@@ -816,14 +793,28 @@ mod board_tests {
         fn fix_bug_1_incorrectly_restricted_move_calculations() {
             let (mut world, mut update_stage) = setup();
 
-            world.spawn().insert(Piece::white(PieceKind::King, Square::new(0, 4)));
-            world.spawn().insert(Piece::white(PieceKind::Pawn, Square::new(2, 3)));
-            world.spawn().insert(Piece::white(PieceKind::Pawn, Square::new(1, 4)));
-            world.spawn().insert(Piece::white(PieceKind::Pawn, Square::new(1, 2)));
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::King, Square::new(0, 4)));
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::Pawn, Square::new(2, 3)));
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::Pawn, Square::new(1, 4)));
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::Pawn, Square::new(1, 2)));
 
-            world.spawn().insert(Piece::black(PieceKind::King, Square::new(7, 4)));
-            world.spawn().insert(Piece::black(PieceKind::Queen, Square::new(6, 4)));
-            world.spawn().insert(Piece::black(PieceKind::Pawn, Square::new(5, 4)));
+            world
+                .spawn()
+                .insert(Piece::black(PieceKind::King, Square::new(7, 4)));
+            world
+                .spawn()
+                .insert(Piece::black(PieceKind::Queen, Square::new(6, 4)));
+            world
+                .spawn()
+                .insert(Piece::black(PieceKind::Pawn, Square::new(5, 4)));
 
             let queen_id = world
                 .spawn()
@@ -854,8 +845,12 @@ mod board_tests {
                 .spawn()
                 .insert(Piece::white(PieceKind::King, Square::new(0, 3)))
                 .id();
-            world.spawn().insert(Piece::white(PieceKind::Knight, Square::new(4, 4)));
-            world.spawn().insert(Piece::black(PieceKind::Rook, Square::new(7, 4)));
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::Knight, Square::new(4, 4)));
+            world
+                .spawn()
+                .insert(Piece::black(PieceKind::Rook, Square::new(7, 4)));
 
             world.insert_resource(PlayerTurn(PieceColour::White));
             update_stage.run(&mut world);
@@ -882,7 +877,9 @@ mod board_tests {
                 .spawn()
                 .insert(Piece::white(PieceKind::King, Square::new(0, 4)))
                 .id();
-            world.spawn().insert(Piece::black(PieceKind::Queen, Square::new(0, 1)));
+            world
+                .spawn()
+                .insert(Piece::black(PieceKind::Queen, Square::new(0, 1)));
 
             world.insert_resource(PlayerTurn(PieceColour::White));
             update_stage.run(&mut world);
@@ -981,10 +978,7 @@ mod board_tests {
 
             (0..8).for_each(|x| {
                 (0..8).for_each(|y| {
-                    world.spawn().insert(Square {
-                        rank: x,
-                        file: y,
-                    });
+                    world.spawn().insert(Square { rank: x, file: y });
                 })
             });
 
@@ -1167,7 +1161,10 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_pawn),
-                &vec![Move::standard((5, 3).into()), Move::en_passant((5, 4).into(), black_pawn)]
+                &vec![
+                    Move::standard((5, 3).into()),
+                    Move::en_passant((5, 4).into(), black_pawn)
+                ]
             );
 
             world.move_piece(white_king, (1, 4).into());
@@ -1445,8 +1442,12 @@ mod board_tests {
         ) {
             let (mut world, mut stage) = setup();
 
-            world.spawn().insert(Piece::black(PieceKind::King, Square::new(7, 4)));
-            world.spawn().insert(Piece::white(PieceKind::King, Square::new(0, 4)));
+            world
+                .spawn()
+                .insert(Piece::black(PieceKind::King, Square::new(7, 4)));
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::King, Square::new(0, 4)));
 
             let black_pawn = world
                 .spawn()
@@ -1486,7 +1487,10 @@ mod board_tests {
             let all_valid_moves = world.get_resource::<AllValidMoves>().unwrap();
             assert_eq!(
                 all_valid_moves.get(white_pawn),
-                &vec![Move::standard((2, 3).into()), Move::pawn_double_step((3, 3).into())]
+                &vec![
+                    Move::standard((2, 3).into()),
+                    Move::pawn_double_step((3, 3).into())
+                ]
             );
         }
 
@@ -1495,8 +1499,12 @@ mod board_tests {
         ) {
             let (mut world, mut stage) = setup();
 
-            world.spawn().insert(Piece::black(PieceKind::King, Square::new(7, 4)));
-            world.spawn().insert(Piece::white(PieceKind::King, Square::new(0, 4)));
+            world
+                .spawn()
+                .insert(Piece::black(PieceKind::King, Square::new(7, 4)));
+            world
+                .spawn()
+                .insert(Piece::white(PieceKind::King, Square::new(0, 4)));
 
             let black_pawn = world
                 .spawn()
@@ -2124,7 +2132,10 @@ mod piece_tests {
     use crate::pieces::*;
 
     fn single_move_path((x, y): (u8, u8), colour: PieceColour) -> PiecePath {
-        PiecePath::single(PotentialMove::new(Move::standard((x, y).into()), None), colour)
+        PiecePath::single(
+            PotentialMove::new(Move::standard((x, y).into()), None),
+            colour,
+        )
     }
 
     fn unblocked_move((x, y): (u8, u8)) -> PotentialMove {
