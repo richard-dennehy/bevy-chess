@@ -6,6 +6,7 @@ use bevy_chess::board::BoardPlugin;
 use bevy_chess::pieces::PiecePlugin;
 use bevy_chess::ui::UiPlugin;
 use bevy_mod_picking::{PickingCameraBundle, PickingPlugin};
+use bevy_chess::orbit_camera::{GameCamera, OrbitCameraPlugin};
 
 fn main() {
     App::build()
@@ -19,44 +20,22 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(PickingPlugin)
         .add_plugin(BoardPlugin)
+        .add_plugin(OrbitCameraPlugin)
         .add_plugin(PiecePlugin)
         .add_plugin(UiPlugin)
         .add_startup_system(setup.system())
         .add_system(exit_on_esc_system.system())
-        .add_system(move_camera.system())
         .run();
 }
 
 fn setup(mut commands: Commands) {
     commands
-        .spawn_bundle(PerspectiveCameraBundle {
-            transform: Transform::from_xyz(0.0, 15.0, -8.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..Default::default()
-        })
+        .spawn_bundle(PerspectiveCameraBundle::default())
         .insert_bundle(PickingCameraBundle::default())
-        .insert(GameCamera);
+        .insert(GameCamera::new(Vec3::new(0.0, 13.0, -8.0), Vec3::ZERO));
 
     commands.spawn_bundle(LightBundle {
         transform: Transform::from_xyz(1.0, 8.0, 2.0),
         ..Default::default()
     });
-}
-
-struct GameCamera;
-
-fn move_camera(
-    mut cameras: Query<&mut Transform, With<GameCamera>>,
-    keyboard: Res<Input<KeyCode>>,
-) {
-    let mut transform = cameras.single_mut().expect("no primary camera");
-
-    if keyboard.pressed(KeyCode::Left) {
-        transform.translation += Vec3::new(0.1, 0.0, 0.0);
-    };
-
-    if keyboard.pressed(KeyCode::Right) {
-        transform.translation += Vec3::new(-0.1, 0.0, 0.0);
-    };
-
-    transform.look_at(Vec3::ZERO, Vec3::Y);
 }
