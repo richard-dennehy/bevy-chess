@@ -35,7 +35,12 @@ fn setup(mut commands: Commands) {
         .insert(GameCamera::new(Vec3::new(0.0, 13.0, -9.0), Vec3::ZERO));
 
     commands.spawn_bundle(LightBundle {
-        transform: Transform::from_xyz(1.0, 8.0, 2.0),
+        transform: Transform::from_xyz(1.0, 12.0, 2.0),
+        light: Light {
+            intensity: 400.0,
+            range: 60.0,
+            ..Default::default()
+        },
         ..Default::default()
     });
 }

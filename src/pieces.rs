@@ -10,6 +10,7 @@ impl Plugin for PiecePlugin {
         app.init_resource::<PieceMeshes>()
             .init_resource::<PieceMaterials>()
             .add_startup_system(create_board.system())
+            .add_startup_system(create_floor_plane.system())
             .add_startup_system(create_pieces.system())
             .add_system_set(
                 SystemSet::on_update(GameState::NewGame).with_system(reset_pieces.system()),
@@ -529,6 +530,18 @@ fn create_board(mut commands: Commands, assets: Res<AssetServer>) {
         .spawn_bundle((transform, GlobalTransform::identity()))
         .with_children(|parent| {
             parent.spawn_scene(chessboard);
+        });
+}
+
+fn create_floor_plane(mut commands: Commands, assets: Res<AssetServer>) {
+    let plane = assets.load("meshes/floor.glb#Scene0");
+
+    let transform = Transform::from_xyz(0.0, -13.0, 0.0);
+
+    commands
+        .spawn_bundle((transform, GlobalTransform::identity()))
+        .with_children(|parent| {
+            parent.spawn_scene(plane);
         });
 }
 
