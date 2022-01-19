@@ -32,7 +32,7 @@ fn setup(mut commands: Commands) {
     commands
         .spawn_bundle(PerspectiveCameraBundle::default())
         .insert_bundle(PickingCameraBundle::default())
-        .insert(GameCamera::new(Vec3::new(0.0, 13.0, -8.0), Vec3::ZERO));
+        .insert(GameCamera::new(Vec3::new(0.0, 13.0, -9.0), Vec3::ZERO));
 
     commands.spawn_bundle(LightBundle {
         transform: Transform::from_xyz(1.0, 8.0, 2.0),

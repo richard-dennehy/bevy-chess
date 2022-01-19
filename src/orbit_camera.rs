@@ -1,6 +1,7 @@
-use bevy::app::{AppBuilder, Plugin};
-use bevy::prelude::{Input, IntoSystem, KeyCode, Mat3, Query, Res, Time, Transform, Vec3};
+use bevy::app::{AppBuilder, EventReader, Plugin};
+use bevy::prelude::{Input, IntoSystem, Mat3, MouseButton, Query, Res, Time, Transform, Vec3};
 use std::f32::consts::FRAC_PI_2;
+use bevy::input::mouse::MouseMotion;
 
 pub struct OrbitCameraPlugin;
 impl Plugin for OrbitCameraPlugin {
@@ -46,18 +47,19 @@ impl GameCamera {
 
 fn rotate_camera(
     mut cameras: Query<(&mut Transform, &mut GameCamera)>,
+    mut mouse_motion: EventReader<MouseMotion>,
     time: Res<Time>,
-    keyboard: Res<Input<KeyCode>>,
+    mouse: Res<Input<MouseButton>>,
 ) {
     let (mut transform, mut camera) = cameras.single_mut().expect("no primary camera");
 
     let rotation_speed = 1.0 * time.delta_seconds();
-    let recentre_speed = rotation_speed * 2.5;
+    let mouse_sensitivity = 0.33;
+    let recentre_speed = rotation_speed * 3.0;
 
-    let yaw_offset = if keyboard.pressed(KeyCode::Left) {
-        camera.yaw_offset - rotation_speed
-    } else if keyboard.pressed(KeyCode::Right) {
-        camera.yaw_offset + rotation_speed
+    let yaw_offset = if mouse.pressed(MouseButton::Right) {
+        let x_movement: f32 = mouse_motion.iter().map(|motion| motion.delta.x).sum();
+        camera.yaw_offset - ((x_movement * mouse_sensitivity) * rotation_speed)
     } else {
         if (camera.yaw_offset.abs() - recentre_speed) < f32::EPSILON {
             0.0
