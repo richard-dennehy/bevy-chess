@@ -206,19 +206,23 @@ impl AllValidMoves {
     }
 }
 
-pub struct MovePiece(Vec3);
+pub struct MovePiece {
+    pub from: Vec3,
+    pub to: Vec3,
+    pub elapsed: f32,
+}
 
 impl MovePiece {
-    pub fn new(square: Square) -> Self {
-        Self(square.to_translation())
-    }
-
-    pub fn target_translation(&self) -> Vec3 {
-        self.0
+    pub fn new(from: Square, to: Square) -> Self {
+        Self {
+            from: from.to_translation(),
+            to: to.to_translation(),
+            elapsed: 0.0,
+        }
     }
 
     pub fn target_square(&self) -> Square {
-        Square::from_translation(self.0)
+        Square::from_translation(self.to)
     }
 }
 
@@ -511,6 +515,7 @@ pub fn move_piece(
             .find(|m| m.target_square == *square);
         if let Some(valid_move) = maybe_valid_move {
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
+            let piece = *piece;
             let _ = special_move_data.last_pawn_double_step.take();
 
             if piece.kind == PieceKind::Pawn {
@@ -532,14 +537,15 @@ pub fn move_piece(
 
                 if let MoveKind::Castle {
                     rook_id,
+                    rook_position,
                     king_target_y,
                     rook_target_y,
                     kingside,
                 } = valid_move.kind
                 {
-                    commands.entity(piece_id).insert(MovePiece::new((square.rank, king_target_y).into()));
+                    commands.entity(piece_id).insert(MovePiece::new(piece.square, (square.rank, king_target_y).into()));
 
-                    commands.entity(rook_id).insert(MovePiece::new((square.rank, rook_target_y).into()));
+                    commands.entity(rook_id).insert(MovePiece::new(rook_position, (square.rank, rook_target_y).into()));
 
                     if kingside {
                         castling_data.kingside_rook_moved = true;
@@ -581,7 +587,7 @@ pub fn move_piece(
                     commands.entity(target_entity).insert(Taken);
                 });
 
-            commands.entity(piece_id).insert(MovePiece::new(*square));
+            commands.entity(piece_id).insert(MovePiece::new(piece.square, *square));
 
             game_state.set(GameState::MovingPiece).unwrap();
         } else {

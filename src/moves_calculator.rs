@@ -55,11 +55,12 @@ impl Move {
         }
     }
 
-    pub fn kingside_castle(square: Square, rook_id: Entity) -> Self {
+    pub fn kingside_castle(square: Square, rook_id: Entity, rook: Piece) -> Self {
         Move {
             target_square: square,
             kind: MoveKind::Castle {
                 rook_id,
+                rook_position: rook.square,
                 king_target_y: 6,
                 rook_target_y: 5,
                 kingside: true,
@@ -67,11 +68,12 @@ impl Move {
         }
     }
 
-    pub fn queenside_castle(square: Square, rook_id: Entity) -> Self {
+    pub fn queenside_castle(square: Square, rook_id: Entity, rook: Piece) -> Self {
         Move {
             target_square: square,
             kind: MoveKind::Castle {
                 rook_id,
+                rook_position: rook.square,
                 king_target_y: 2,
                 rook_target_y: 3,
                 kingside: false,
@@ -89,6 +91,7 @@ pub enum MoveKind {
     },
     Castle {
         rook_id: Entity,
+        rook_position: Square,
         king_target_y: u8,
         rook_target_y: u8,
         kingside: bool,
@@ -463,37 +466,37 @@ impl<'game> MoveCalculator<'game> {
                 if king_does_not_pass_through_attacked_square(-1)
                     && self.board_state.get(passed_through).is_none()
                 {
-                    let rook_id = self
+                    let (rook_id, rook) = self
                         .player_pieces
                         .iter()
-                        .find_map(|(entity, piece)| {
-                            (piece.square.rank == self.king_square.rank
-                                && piece.square.file == 0)
-                                .then(|| *entity)
+                        .find(|(_, piece)| {
+                            piece.square.rank == self.king_square.rank
+                                && piece.square.file == 0
                         })
                         .expect("queenside castling without a rook");
                     moves.push(Move::queenside_castle(
                         (self.king_square.rank, 0).into(),
-                        rook_id,
+                        *rook_id,
+                        **rook,
                     ));
                 }
             }
 
             if !castling_data.kingside_rook_moved {
                 if king_does_not_pass_through_attacked_square(1) {
-                    let rook_id = self
+                    let (rook_id, rook) = self
                         .player_pieces
                         .iter()
-                        .find_map(|(entity, piece)| {
-                            (piece.square.rank == self.king_square.rank
-                                && piece.square.file == 7)
-                                .then(|| *entity)
+                        .find(|(_, piece)| {
+                            piece.square.rank == self.king_square.rank
+                                && piece.square.file == 7
                         })
                         .expect("kingside castling without a rook");
 
                     moves.push(Move::kingside_castle(
                         (self.king_square.rank, 7).into(),
-                        rook_id,
+                        *rook_id,
+                        **rook,
                     ));
                 }
             }

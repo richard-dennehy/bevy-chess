@@ -55,7 +55,7 @@ fn rotate_camera(
 
     let rotation_speed = 1.0 * time.delta_seconds();
     let mouse_sensitivity = 0.33;
-    let recentre_speed = rotation_speed * 3.0;
+    let recentre_speed = rotation_speed * 2.0;
 
     let yaw_offset = if mouse.pressed(MouseButton::Right) {
         let x_movement: f32 = mouse_motion.iter().map(|motion| motion.delta.x).sum();

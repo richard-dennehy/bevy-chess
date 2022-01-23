@@ -463,30 +463,37 @@ impl Piece {
     }
 }
 
-const VELOCITY: f32 = 7.0;
-// TODO acceleration; y movement - Bezier curve maybe?
 fn move_pieces(
     mut commands: Commands,
     time: Res<Time>,
     promoted_pawn: Res<PromotedPawn>,
     mut state: ResMut<State<GameState>>,
     mut turn: ResMut<PlayerTurn>,
-    mut query: Query<(Entity, &MovePiece, &mut Piece, &mut Transform)>,
+    mut query: Query<(Entity, &mut MovePiece, &mut Piece, &mut Transform)>,
 ) {
     // note: castling moves two pieces on the same turn
+    let average_velocity = 6.0;
 
     let any_updated =
         query
             .iter_mut()
-            .any(|(piece_entity, move_piece, mut piece, mut transform)| {
-                let direction = move_piece.target_translation() - transform.translation;
+            .any(|(piece_entity, mut move_piece, mut piece, mut transform)| {
+                let direction = move_piece.to - transform.translation;
 
-                if direction.length() > f32::EPSILON * 2.0 {
-                    let delta = VELOCITY * (direction.normalize() * time.delta_seconds());
-                    if delta.length() > direction.length() {
-                        transform.translation += direction;
+                if direction.length() > f32::EPSILON {
+                    let distance = (move_piece.from - move_piece.to).length();
+                    let target_time = distance / average_velocity;
+
+                    move_piece.elapsed += time.delta_seconds();
+                    if move_piece.elapsed > target_time {
+                        transform.translation = move_piece.to;
                     } else {
-                        transform.translation += delta;
+                        let t = move_piece.elapsed / target_time;
+                        let eased_in = t.powi(2);
+                        let eased_out = 1.0 - (1.0 - t).powi(2);
+                        let t_eased = eased_in + ((eased_out - eased_in) * t);
+
+                        transform.translation = move_piece.from.lerp(move_piece.to, t_eased);
                     }
 
                     true
@@ -534,32 +541,41 @@ fn create_board(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn create_floor_plane(mut commands: Commands, assets: Res<AssetServer>) {
+    // doesn't appear to support instancing
     let plane = assets.load("meshes/floor.glb#Scene0");
+    let plane_size = 90.0;
 
-    let transform = Transform::from_xyz(0.0, -13.0, 0.0);
+    for x in -1..=1 {
+        for y in -1..=1 {
+            let translation =
+                Transform::from_xyz(x as f32 * plane_size, -40.0, y as f32 * plane_size);
 
-    commands
-        .spawn_bundle((transform, GlobalTransform::identity()))
-        .with_children(|parent| {
-            parent.spawn_scene(plane);
-        });
+            commands
+                .spawn_bundle((translation, GlobalTransform::identity()))
+                .with_children(|parent| {
+                    parent.spawn_scene(plane.clone());
+                });
+        }
+    }
 }
 
 fn create_pieces(mut commands: Commands, meshes: Res<PieceMeshes>, materials: Res<PieceMaterials>) {
-    [PieceColour::White, PieceColour::Black].into_iter().for_each(|colour| {
-        let back_row = colour.starting_back_rank();
-        let front_row = colour.starting_front_rank();
+    [PieceColour::White, PieceColour::Black]
+        .into_iter()
+        .for_each(|colour| {
+            let back_row = colour.starting_back_rank();
+            let front_row = colour.starting_front_rank();
 
-        [
-            PieceKind::Rook,
-            PieceKind::Knight,
-            PieceKind::Bishop,
-            PieceKind::Queen,
-            PieceKind::King,
-            PieceKind::Bishop,
-            PieceKind::Knight,
-            PieceKind::Rook,
-        ]
+            [
+                PieceKind::Rook,
+                PieceKind::Knight,
+                PieceKind::Bishop,
+                PieceKind::Queen,
+                PieceKind::King,
+                PieceKind::Bishop,
+                PieceKind::Knight,
+                PieceKind::Rook,
+            ]
             .into_iter()
             .enumerate()
             .for_each(|(file, kind)| {
@@ -573,17 +589,17 @@ fn create_pieces(mut commands: Commands, meshes: Res<PieceMeshes>, materials: Re
                 );
             });
 
-        (0..=7).for_each(|file| {
-            spawn_piece(
-                &mut commands,
-                &materials,
-                &meshes,
-                colour,
-                PieceKind::Pawn,
-                (front_row, file).into(),
-            );
+            (0..=7).for_each(|file| {
+                spawn_piece(
+                    &mut commands,
+                    &materials,
+                    &meshes,
+                    colour,
+                    PieceKind::Pawn,
+                    (front_row, file).into(),
+                );
+            });
         });
-    });
 }
 
 fn spawn_piece(
@@ -669,14 +685,7 @@ fn promote_pawn_at_final_rank(
     let square = piece.square;
     commands.entity(entity).despawn_recursive();
 
-    let new_entity = spawn_piece(
-        &mut commands,
-        &materials,
-        &meshes,
-        turn.0,
-        new_kind,
-        square,
-    );
+    let new_entity = spawn_piece(&mut commands, &materials, &meshes, turn.0, new_kind, square);
     promoted_pawn.0 = Some(new_entity);
 }
 
