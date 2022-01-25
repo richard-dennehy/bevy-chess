@@ -472,6 +472,12 @@ fn move_pieces(
     mut query: Query<(Entity, &mut MovePiece, &mut Piece, &mut Transform)>,
 ) {
     // note: castling moves two pieces on the same turn
+
+    // need to map between 0->1 range and -1->1 range
+    let ease_xz = |x: f32| (sigmoid(-0.1)((x * 2.0) - 1.0) + 1.0) / 2.0;
+    // map from 0->1 to 0->0.5->0
+    let ease_y = |y: f32| sigmoid(0.3)(if y > 0.5 { 1.0 - y} else { y });
+
     let average_velocity = 6.0;
 
     let any_updated =
@@ -489,11 +495,12 @@ fn move_pieces(
                         transform.translation = move_piece.to;
                     } else {
                         let t = move_piece.elapsed / target_time;
-                        let eased_in = t.powi(2);
-                        let eased_out = 1.0 - (1.0 - t).powi(2);
-                        let t_eased = eased_in + ((eased_out - eased_in) * t);
+                        let eased = ease_xz(t);
 
-                        transform.translation = move_piece.from.lerp(move_piece.to, t_eased);
+                        let xz_translation = move_piece.from.lerp(move_piece.to, eased);
+                        let y_translation = Vec3::new(0.0, ease_y(t) * 1.5, 0.0);
+
+                        transform.translation = xz_translation + y_translation;
                     }
 
                     true
@@ -514,6 +521,16 @@ fn move_pieces(
             state.set(GameState::NothingSelected).unwrap();
         }
     }
+}
+
+/// see: https://dhemery.github.io/DHE-Modules/technical/sigmoid/
+/// TL;DR: given normalised values (i.e. -1 to 1), produces an easing function
+/// change `k` to change the easing:
+///   - `k` == 0 is linear
+///   - `k` with higher positive values results in a sharper ease out followed by a sharper ease in
+///   - `k` with lower negative values results in a sharper ease in followed by a sharper ease out
+fn sigmoid(k: f32) -> Box<dyn Fn(f32) -> f32> {
+    Box::new(move |x: f32| (x - k * x) / (k - 2.0 * k * x.abs() + 1.0))
 }
 
 fn reset_pieces(
