@@ -3,6 +3,7 @@ use crate::moves_calculator::{Move, MoveKind, PotentialMove};
 use bevy::prelude::*;
 use std::f32::consts::PI;
 use std::fmt::Formatter;
+use crate::easing;
 
 pub struct PiecePlugin;
 impl Plugin for PiecePlugin {
@@ -473,10 +474,11 @@ fn move_pieces(
 ) {
     // note: castling moves two pieces on the same turn
 
+    // TODO test these
     // need to map between 0->1 range and -1->1 range
-    let ease_xz = |x: f32| (sigmoid(-0.1)((x * 2.0) - 1.0) + 1.0) / 2.0;
+    let ease_xz = |x: f32| (easing::sigmoid(-0.1)((x * 2.0) - 1.0) + 1.0) / 2.0;
     // map from 0->1 to 0->0.5->0
-    let ease_y = |y: f32| sigmoid(0.3)(if y > 0.5 { 1.0 - y} else { y });
+    let ease_y = |y: f32| easing::sigmoid(0.3)(if y > 0.5 { 1.0 - y} else { y });
 
     let average_velocity = 6.0;
 
@@ -521,16 +523,6 @@ fn move_pieces(
             state.set(GameState::NothingSelected).unwrap();
         }
     }
-}
-
-/// see: https://dhemery.github.io/DHE-Modules/technical/sigmoid/
-/// TL;DR: given normalised values (i.e. -1 to 1), produces an easing function
-/// change `k` to change the easing:
-///   - `k` == 0 is linear
-///   - `k` with higher positive values results in a sharper ease out followed by a sharper ease in
-///   - `k` with lower negative values results in a sharper ease in followed by a sharper ease out
-fn sigmoid(k: f32) -> Box<dyn Fn(f32) -> f32> {
-    Box::new(move |x: f32| (x - k * x) / (k - 2.0 * k * x.abs() + 1.0))
 }
 
 fn reset_pieces(

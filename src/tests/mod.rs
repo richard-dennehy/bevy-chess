@@ -1667,23 +1667,11 @@ mod board_tests {
                 })
                 .id();
 
-            let kingside_rook = world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    square: (0, 7).into(),
-                })
-                .id();
+            let kingside_rook = Piece::white(PieceKind::Rook, (0, 7).into());
+            let kingside_rook_id = world.spawn().insert(kingside_rook).id();
 
-            let queenside_rook = world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    square: (0, 0).into(),
-                })
-                .id();
+            let queenside_rook = Piece::white(PieceKind::Rook, (0, 0).into());
+            let queenside_rook_id = world.spawn().insert(queenside_rook).id();
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
             let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
@@ -1701,8 +1689,8 @@ mod board_tests {
                     Move::standard((1, 3).into()),
                     Move::standard((1, 4).into()),
                     Move::standard((1, 5).into()),
-                    Move::queenside_castle((0, 0).into(), queenside_rook),
-                    Move::kingside_castle((0, 7).into(), kingside_rook)
+                    Move::queenside_castle((0, 0).into(), queenside_rook_id, queenside_rook),
+                    Move::kingside_castle((0, 7).into(), kingside_rook_id, kingside_rook)
                 ]
             );
 
@@ -1765,23 +1753,11 @@ mod board_tests {
                 })
                 .id();
 
-            let white_kingside_rook = world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    square: (0, 7).into(),
-                })
-                .id();
+            let kingside_rook = Piece::white(PieceKind::Rook, (0, 7).into());
+            let kingside_rook_id = world.spawn().insert(kingside_rook).id();
 
-            let queenside_rook = world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    square: (0, 0).into(),
-                })
-                .id();
+            let queenside_rook = Piece::white(PieceKind::Rook, (0, 0).into());
+            let queenside_rook_id = world.spawn().insert(queenside_rook).id();
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
             let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
@@ -1799,12 +1775,12 @@ mod board_tests {
                     Move::standard((1, 3).into()),
                     Move::standard((1, 4).into()),
                     Move::standard((1, 5).into()),
-                    Move::queenside_castle((0, 0).into(), queenside_rook),
-                    Move::kingside_castle((0, 7).into(), white_kingside_rook)
+                    Move::queenside_castle((0, 0).into(), queenside_rook_id, queenside_rook),
+                    Move::kingside_castle((0, 7).into(), kingside_rook_id, kingside_rook)
                 ]
             );
 
-            world.move_piece(white_kingside_rook, (1, 7).into());
+            world.move_piece(kingside_rook_id, (1, 7).into());
             stage.run(&mut world);
 
             world.move_piece(black_king, (7, 5).into());
@@ -1819,11 +1795,11 @@ mod board_tests {
                     Move::standard((1, 3).into()),
                     Move::standard((1, 4).into()),
                     Move::standard((1, 5).into()),
-                    Move::queenside_castle((0, 0).into(), queenside_rook)
+                    Move::queenside_castle((0, 0).into(), queenside_rook_id, queenside_rook)
                 ]
             );
 
-            world.move_piece(white_kingside_rook, (0, 7).into());
+            world.move_piece(kingside_rook_id, (0, 7).into());
             stage.run(&mut world);
 
             world.move_piece(black_king, (7, 4).into());
@@ -1838,7 +1814,7 @@ mod board_tests {
                     Move::standard((1, 3).into()),
                     Move::standard((1, 4).into()),
                     Move::standard((1, 5).into()),
-                    Move::queenside_castle((0, 0).into(), queenside_rook)
+                    Move::queenside_castle((0, 0).into(), queenside_rook_id, queenside_rook)
                 ]
             );
         }
@@ -1865,23 +1841,11 @@ mod board_tests {
                 })
                 .id();
 
-            let kingside_rook = world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    square: (0, 7).into(),
-                })
-                .id();
+            let kingside_rook = Piece::white(PieceKind::Rook, (0, 7).into());
+            let kingside_rook_id = world.spawn().insert(kingside_rook).id();
 
-            let white_queenside_rook = world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    square: (0, 0).into(),
-                })
-                .id();
+            let queenside_rook = Piece::white(PieceKind::Rook, (0, 0).into());
+            let queenside_rook_id = world.spawn().insert(queenside_rook).id();
 
             world.overwrite_resource(PlayerTurn(PieceColour::White));
             let mut special_moves = world.get_resource_mut::<SpecialMoveData>().unwrap();
@@ -1899,12 +1863,12 @@ mod board_tests {
                     Move::standard((1, 3).into()),
                     Move::standard((1, 4).into()),
                     Move::standard((1, 5).into()),
-                    Move::queenside_castle((0, 0).into(), white_queenside_rook),
-                    Move::kingside_castle((0, 7).into(), kingside_rook)
+                    Move::queenside_castle((0, 0).into(), queenside_rook_id, queenside_rook),
+                    Move::kingside_castle((0, 7).into(), kingside_rook_id, kingside_rook)
                 ]
             );
 
-            world.move_piece(white_queenside_rook, (1, 0).into());
+            world.move_piece(queenside_rook_id, (1, 0).into());
             stage.run(&mut world);
 
             world.move_piece(black_king, (7, 5).into());
@@ -1919,11 +1883,11 @@ mod board_tests {
                     Move::standard((1, 3).into()),
                     Move::standard((1, 4).into()),
                     Move::standard((1, 5).into()),
-                    Move::kingside_castle((0, 7).into(), kingside_rook)
+                    Move::kingside_castle((0, 7).into(), kingside_rook_id, kingside_rook)
                 ]
             );
 
-            world.move_piece(white_queenside_rook, (0, 0).into());
+            world.move_piece(queenside_rook_id, (0, 0).into());
             stage.run(&mut world);
 
             world.move_piece(black_king, (7, 4).into());
@@ -1938,7 +1902,7 @@ mod board_tests {
                     Move::standard((1, 3).into()),
                     Move::standard((1, 4).into()),
                     Move::standard((1, 5).into()),
-                    Move::kingside_castle((0, 7).into(), kingside_rook)
+                    Move::kingside_castle((0, 7).into(), kingside_rook_id, kingside_rook)
                 ]
             );
         }
@@ -2021,14 +1985,8 @@ mod board_tests {
                 })
                 .id();
 
-            let kingside_rook = world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    square: (0, 7).into(),
-                })
-                .id();
+            let kingside_rook = Piece::white(PieceKind::Rook, (0, 7).into());
+            let kingside_rook_id = world.spawn().insert(kingside_rook).id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
@@ -2052,7 +2010,7 @@ mod board_tests {
                     Move::standard((0, 5).into()),
                     Move::standard((1, 3).into()),
                     Move::standard((1, 5).into()),
-                    Move::kingside_castle((0, 7).into(), kingside_rook)
+                    Move::kingside_castle((0, 7).into(), kingside_rook_id, kingside_rook)
                 ]
             );
         }
@@ -2079,14 +2037,8 @@ mod board_tests {
                 })
                 .id();
 
-            let kingside_rook = world
-                .spawn()
-                .insert(Piece {
-                    kind: PieceKind::Rook,
-                    colour: PieceColour::White,
-                    square: (0, 7).into(),
-                })
-                .id();
+            let kingside_rook = Piece::white(PieceKind::Rook, (0, 7).into());
+            let kingside_rook_id = world.spawn().insert(kingside_rook).id();
 
             world.spawn().insert(Piece {
                 kind: PieceKind::Rook,
@@ -2120,7 +2072,7 @@ mod board_tests {
                     Move::standard((1, 3).into()),
                     Move::standard((1, 4).into()),
                     Move::standard((1, 5).into()),
-                    Move::kingside_castle((0, 7).into(), kingside_rook)
+                    Move::kingside_castle((0, 7).into(), kingside_rook_id, kingside_rook)
                 ]
             );
         }
