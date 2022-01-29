@@ -15,4 +15,5 @@ pub mod ui;
 pub mod systems {
     pub mod orbit_camera;
     pub mod chess;
+    mod game_set_up;
 }

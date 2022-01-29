@@ -1,6 +1,5 @@
 mod board_tests {
-    use crate::board::BoardState;
-    use crate::model::{Piece, PieceColour, PieceKind};
+    use crate::model::{BoardState, Piece, PieceColour, PieceKind};
 
     #[test]
     fn board_state_for_default_board() {
@@ -61,12 +60,9 @@ mod board_tests {
 
     mod checking_for_check {
         use super::*;
-        use crate::board::{
-            calculate_all_moves, AllValidMoves, CastlingData, GameState, PlayerTurn,
-            SpecialMoveData, Square,
-        };
-        use crate::moves_calculator::Move;
         use bevy::prelude::*;
+        use crate::model::{AllValidMoves, CastlingData, Move, SpecialMoveData, Square};
+        use crate::systems::chess::{calculate_all_moves, GameState, PlayerTurn};
 
         fn setup() -> (World, SystemStage) {
             let mut world = World::new();
@@ -898,14 +894,10 @@ mod board_tests {
 
     mod special_moves {
         use super::*;
-        use crate::board::{
-            calculate_all_moves, move_piece, AllValidMoves, CastlingData, GameState,
-            LastPawnDoubleStep, MovePiece, PlayerTurn, PromotedPawn, SelectedPiece, SelectedSquare,
-            SpecialMoveData, Square, Taken,
-        };
-        use crate::moves_calculator::Move;
         use bevy::ecs::component::Component;
         use bevy::prelude::*;
+        use crate::model::{AllValidMoves, CastlingData, LastPawnDoubleStep, Move, SpecialMoveData, Square};
+        use crate::systems::chess::{calculate_all_moves, GameState, move_piece, MovePiece, PlayerTurn, PromotedPawn, SelectedPiece, SelectedSquare, Taken};
 
         trait WorldTestUtils {
             fn overwrite_resource<T: Component>(&mut self, resource: T);
@@ -2080,7 +2072,6 @@ mod board_tests {
 }
 
 mod piece_tests {
-    use crate::moves_calculator::{Move, PotentialMove};
     use crate::model::*;
 
     fn single_move_path((x, y): (u8, u8), colour: PieceColour) -> PiecePath {
@@ -2100,7 +2091,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_white_pawn {
         use super::*;
-        use crate::board::Square;
 
         fn pawn(x: u8, y: u8) -> Piece {
             Piece {
@@ -2112,7 +2102,6 @@ mod piece_tests {
 
         mod when_the_board_is_empty {
             use super::*;
-            use crate::moves_calculator::Move;
 
             #[test]
             fn should_only_allow_single_move_forward_after_first_move() {
@@ -2264,7 +2253,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_black_pawn {
         use super::*;
-        use crate::board::Square;
 
         fn pawn(x: u8, y: u8) -> Piece {
             Piece {
@@ -2276,7 +2264,6 @@ mod piece_tests {
 
         mod when_the_board_is_empty {
             use super::*;
-            use crate::moves_calculator::Move;
 
             #[test]
             fn should_only_allow_single_move_forward_after_first_move() {
@@ -2432,7 +2419,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_king {
         use super::*;
-        use crate::board::Square;
 
         fn king(x: u8, y: u8) -> Piece {
             Piece {
@@ -2631,7 +2617,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_queen {
         use super::*;
-        use crate::board::Square;
 
         fn queen(x: u8, y: u8) -> Piece {
             Piece {
@@ -3018,7 +3003,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_bishop {
         use super::*;
-        use crate::board::Square;
 
         fn bishop(x: u8, y: u8) -> Piece {
             Piece {
@@ -3187,7 +3171,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_knight {
         use super::*;
-        use crate::board::Square;
 
         fn knight(x: u8, y: u8) -> Piece {
             Piece {
@@ -3393,7 +3376,6 @@ mod piece_tests {
 
     mod valid_moves_of_a_rook {
         use super::*;
-        use crate::board::Square;
 
         fn rook(x: u8, y: u8) -> Piece {
             Piece {

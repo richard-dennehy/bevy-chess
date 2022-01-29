@@ -1,4 +1,3 @@
  - Experiment with using `#[path]` to better map test modules to files
  - Break up the test suite into something sane
- - Split bevy systems from generic logic
  - Create a proper texture for the chessboard (blender nodes material doesn't appear to import/export properly)
