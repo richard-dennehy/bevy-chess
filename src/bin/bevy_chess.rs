@@ -2,11 +2,10 @@ extern crate bevy_chess;
 
 use bevy::input::system::exit_on_esc_system;
 use bevy::prelude::*;
-use bevy_chess::board::BoardPlugin;
-use bevy_chess::pieces::PiecePlugin;
 use bevy_chess::ui::UiPlugin;
 use bevy_mod_picking::{PickingCameraBundle, PickingPlugin};
-use bevy_chess::orbit_camera::{GameCamera, OrbitCameraPlugin};
+use bevy_chess::systems::chess::ChessPlugin;
+use bevy_chess::systems::orbit_camera::{GameCamera, OrbitCameraPlugin};
 
 fn main() {
     App::build()
@@ -19,9 +18,8 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(PickingPlugin)
-        .add_plugin(BoardPlugin)
+        .add_plugin(ChessPlugin)
         .add_plugin(OrbitCameraPlugin)
-        .add_plugin(PiecePlugin)
         .add_plugin(UiPlugin)
         .add_startup_system(setup.system())
         .add_system(exit_on_esc_system.system())

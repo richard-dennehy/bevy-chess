@@ -8,8 +8,11 @@ mod tests;
 
 mod moves_calculator;
 
-pub mod board;
 pub mod easing;
-pub mod pieces;
+pub mod model;
 pub mod ui;
-pub mod orbit_camera;
+
+pub mod systems {
+    pub mod orbit_camera;
+    pub mod chess;
+}

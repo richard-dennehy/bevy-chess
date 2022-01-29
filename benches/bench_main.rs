@@ -1,6 +1,6 @@
 use bevy::prelude::{IntoSystem, Stage, State, SystemStage, World};
 use bevy_chess::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn};
-use bevy_chess::pieces::{Piece, PieceColour, PieceKind};
+use bevy_chess::model::{Piece, PieceColour, PieceKind};
 
 use criterion::*;
 

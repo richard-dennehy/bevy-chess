@@ -1,13 +1,13 @@
-use crate::moves_calculator;
-use crate::moves_calculator::{CalculatorResult, Move, MoveKind};
-use crate::pieces::{Piece, PieceColour, PieceKind};
-use bevy::prelude::*;
-use bevy::utils::HashMap;
-use bevy_mod_picking::{PickableBundle, PickingCamera};
+use std::f32::consts::PI;
 use std::fmt::Formatter;
+use bevy::prelude::*;
+use bevy_mod_picking::{PickableBundle, PickingCamera};
+use crate::{easing, moves_calculator};
+use crate::moves_calculator::{CalculatorResult};
+use crate::model::{AllValidMoves, LastPawnDoubleStep, MoveKind, Piece, PieceColour, PieceKind, SpecialMoveData, Square};
 
-pub struct BoardPlugin;
-impl Plugin for BoardPlugin {
+pub struct ChessPlugin;
+impl Plugin for ChessPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<SquareMaterials>()
             .init_resource::<SelectedSquare>()
@@ -17,12 +17,19 @@ impl Plugin for BoardPlugin {
             .init_resource::<AllValidMoves>()
             .init_resource::<Option<HighlightedSquare>>()
             .init_resource::<SpecialMoveData>()
+            .init_resource::<PieceMeshes>()
+            .init_resource::<PieceMaterials>()
             .add_state(GameState::NewGame)
             .add_startup_system(create_board.system())
+            .add_startup_system(piece_create_board.system())
+            .add_startup_system(create_floor_plane.system())
+            .add_startup_system(create_pieces.system())
             .add_system(highlight_square_on_hover.system())
             .add_system(restart_game.system())
             .add_system_set(
-                SystemSet::on_update(GameState::NewGame).with_system(start_new_game.system()),
+                SystemSet::on_update(GameState::NewGame)
+                    .with_system(start_new_game.system())
+                    .with_system(reset_pieces.system()),
             )
             .add_system_set(
                 SystemSet::on_enter(GameState::NothingSelected)
@@ -56,81 +63,17 @@ impl Plugin for BoardPlugin {
                 SystemSet::on_exit(GameState::TargetSquareSelected)
                     .with_system(despawn_taken_pieces.system())
                     .with_system(reset_selected.system()),
+            )
+            .add_system_set(
+                SystemSet::on_update(GameState::MovingPiece).with_system(move_pieces.system()),
+            )
+            .add_system_set(
+                SystemSet::on_update(GameState::PawnPromotion)
+                    .with_system(promote_pawn_at_final_rank.system()),
             );
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct BoardState {
-    squares: [Option<PieceColour>; 64],
-}
-
-impl BoardState {
-    pub fn get(&self, square: Square) -> &Option<PieceColour> {
-        &self.squares[(square.rank * 8 + square.file) as usize]
-    }
-
-    #[cfg(test)]
-    pub fn squares(&self) -> &[Option<PieceColour>] {
-        &self.squares
-    }
-}
-
-impl From<&[Piece]> for BoardState {
-    fn from(pieces: &[Piece]) -> Self {
-        pieces.iter().collect()
-    }
-}
-
-impl<const N: usize> From<[Piece; N]> for BoardState {
-    fn from(pieces: [Piece; N]) -> Self {
-        Self::from(&pieces[..])
-    }
-}
-
-impl<'piece> FromIterator<&'piece Piece> for BoardState {
-    fn from_iter<T: IntoIterator<Item = &'piece Piece>>(pieces: T) -> Self {
-        let mut squares = [None; 64];
-        pieces.into_iter().for_each(|piece| {
-            squares[(piece.square.rank * 8 + piece.square.file) as usize] = Some(piece.colour);
-        });
-
-        Self { squares }
-    }
-}
-
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub struct Square {
-    pub rank: u8,
-    pub file: u8,
-}
-
-impl Square {
-    pub fn new(rank: u8, file: u8) -> Self {
-        assert!(rank <= 7 && file <= 7, "({}, {}) is out of bounds", rank, file);
-
-        Self {
-            rank: rank,
-            file: file,
-        }
-    }
-
-    pub fn from_translation(translation: Vec3) -> Self {
-        let rank = (translation.z + 3.5).round() as u8;
-        let file = (translation.x + 3.5).round() as u8;
-        Self { rank: rank, file: file }
-    }
-
-    pub fn to_translation(self) -> Vec3 {
-        (self.file as f32 - 3.5, 0.0, self.rank as f32 - 3.5).into()
-    }
-}
-
-impl From<(u8, u8)> for Square {
-    fn from((rank, file): (u8, u8)) -> Self {
-        Self::new(rank, file)
-    }
-}
 
 pub struct Taken;
 
@@ -141,70 +84,6 @@ pub struct SelectedSquare(pub Option<Entity>);
 pub struct SelectedPiece(pub Option<Entity>);
 #[derive(Default)]
 pub struct PromotedPawn(pub Option<Entity>);
-
-#[derive(Debug, PartialEq)]
-pub struct LastPawnDoubleStep {
-    pub pawn_id: Entity,
-    pub square: Square,
-}
-
-#[derive(Debug, Default)]
-pub struct SpecialMoveData {
-    pub last_pawn_double_step: Option<LastPawnDoubleStep>,
-    pub white_castling_data: CastlingData,
-    pub black_castling_data: CastlingData,
-}
-
-impl SpecialMoveData {
-    pub fn castling_data(&self, turn: PieceColour) -> &CastlingData {
-        if turn == PieceColour::White {
-            &self.white_castling_data
-        } else {
-            &self.black_castling_data
-        }
-    }
-
-    fn castling_data_mut(&mut self, turn: PieceColour) -> &mut CastlingData {
-        if turn == PieceColour::White {
-            &mut self.white_castling_data
-        } else {
-            &mut self.black_castling_data
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct CastlingData {
-    pub king_moved: bool,
-    pub kingside_rook_moved: bool,
-    pub queenside_rook_moved: bool,
-}
-
-// todo circular dependency between move calculator and board module isn't ideal
-#[derive(Default, Debug)]
-pub struct AllValidMoves {
-    _0: HashMap<Entity, Vec<Move>>,
-}
-
-impl AllValidMoves {
-    pub fn get(&self, piece_id: Entity) -> &Vec<Move> {
-        self._0
-            .get(&piece_id)
-            .expect("all pieces should have moves calculated")
-    }
-
-    pub fn insert(&mut self, piece_id: Entity, moves: Vec<Move>) {
-        self._0.insert(piece_id, moves);
-    }
-
-    pub fn contains(&self, piece_id: Entity, square: Square) -> bool {
-        self.get(piece_id).iter().any(|m| m.target_square == square)
-    }
-
-    pub fn clear(&mut self) {
-        self._0.iter_mut().for_each(|(_, moves)| moves.clear())
-    }
-}
 
 pub struct MovePiece {
     pub from: Vec3,
@@ -283,6 +162,7 @@ impl PlayerTurn {
     }
 }
 
+
 fn create_board(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -292,7 +172,7 @@ fn create_board(
 
     (0..8).for_each(|rank| {
         (0..8).for_each(|file| {
-            let square = Square { rank: rank, file: file };
+            let square = Square { rank, file };
 
             commands
                 .spawn_bundle(PbrBundle {
@@ -370,7 +250,6 @@ fn colour_squares(
     }
 }
 
-// TODO maybe implement this by drawing the highlight on top of the overlay
 fn highlight_square_on_hover(
     materials: Res<SquareMaterials>,
     mut previous_highlighted_square: ResMut<Option<HighlightedSquare>>,
@@ -420,7 +299,7 @@ pub fn calculate_all_moves(
             game_state.set(GameState::Checkmate(player_turn.0)).unwrap();
         }
         CalculatorResult::Ok(valid_moves) => {
-            valid_moves._0.into_iter().for_each(|(k, v)| {
+            valid_moves.into_iter().for_each(|(k, v)| {
                 all_moves.insert(k, v);
             });
         }
@@ -662,5 +541,320 @@ impl FromWorld for SquareMaterials {
             valid_selection: materials.add(valid_selection.into()),
             none: materials.add(Color::NONE.into()),
         }
+    }
+}
+
+
+fn move_pieces(
+    mut commands: Commands,
+    time: Res<Time>,
+    promoted_pawn: Res<PromotedPawn>,
+    mut state: ResMut<State<GameState>>,
+    mut turn: ResMut<PlayerTurn>,
+    mut query: Query<(Entity, &mut MovePiece, &mut Piece, &mut Transform)>,
+) {
+    // note: castling moves two pieces on the same turn
+
+    // TODO test these
+    // need to map between 0->1 range and -1->1 range
+    let ease_xz = |x: f32| (easing::sigmoid(-0.1)((x * 2.0) - 1.0) + 1.0) / 2.0;
+    // map from 0->1 to 0->0.5->0
+    let ease_y = |y: f32| easing::sigmoid(0.3)(if y > 0.5 { 1.0 - y} else { y });
+
+    // TODO try making the speed proportional to the square root of the total distance so large moves don't feel so slow
+    let average_velocity = 6.5;
+
+    let any_updated =
+        query
+            .iter_mut()
+            .any(|(piece_entity, mut move_piece, mut piece, mut transform)| {
+                let direction = move_piece.to - transform.translation;
+
+                if direction.length() > f32::EPSILON {
+                    let distance = (move_piece.from - move_piece.to).length();
+                    let target_time = distance / average_velocity;
+
+                    move_piece.elapsed += time.delta_seconds();
+                    if move_piece.elapsed > target_time {
+                        transform.translation = move_piece.to;
+                    } else {
+                        let t = move_piece.elapsed / target_time;
+                        let eased = ease_xz(t);
+
+                        let xz_translation = move_piece.from.lerp(move_piece.to, eased);
+                        let y_translation = Vec3::new(0.0, ease_y(t) * 1.2, 0.0);
+
+                        transform.translation = xz_translation + y_translation;
+                    }
+
+                    true
+                } else {
+                    piece.square = move_piece.target_square();
+
+                    commands.entity(piece_entity).remove::<MovePiece>();
+
+                    false
+                }
+            });
+
+    if !any_updated {
+        if let Some(_) = promoted_pawn.0 {
+            state.set(GameState::PawnPromotion).unwrap();
+        } else {
+            turn.next();
+            state.set(GameState::NothingSelected).unwrap();
+        }
+    }
+}
+
+fn reset_pieces(
+    mut commands: Commands,
+    meshes: Res<PieceMeshes>,
+    materials: Res<PieceMaterials>,
+    pieces: Query<Entity, With<Piece>>,
+) {
+    pieces.for_each(|entity| commands.entity(entity).despawn_recursive());
+    create_pieces(commands, meshes, materials);
+}
+
+const SCALE_FACTOR: f32 = 15.0;
+
+fn piece_create_board(mut commands: Commands, assets: Res<AssetServer>) {
+    let chessboard = assets.load("meshes/chessboard.glb#Scene0");
+
+    let scale = Transform::from_scale(Vec3::splat(SCALE_FACTOR));
+    let translation = Transform::from_xyz(0.0, -0.062 * SCALE_FACTOR, 0.0);
+    let transform = translation * scale;
+
+    commands
+        .spawn_bundle((transform, GlobalTransform::identity()))
+        .with_children(|parent| {
+            parent.spawn_scene(chessboard);
+        });
+}
+
+fn create_floor_plane(mut commands: Commands, assets: Res<AssetServer>) {
+    // doesn't appear to support instancing
+    let plane = assets.load("meshes/floor.glb#Scene0");
+    let plane_size = 90.0;
+
+    for x in -1..=1 {
+        for y in -1..=1 {
+            let translation =
+                Transform::from_xyz(x as f32 * plane_size, -40.0, y as f32 * plane_size);
+
+            commands
+                .spawn_bundle((translation, GlobalTransform::identity()))
+                .with_children(|parent| {
+                    parent.spawn_scene(plane.clone());
+                });
+        }
+    }
+}
+
+fn create_pieces(mut commands: Commands, meshes: Res<PieceMeshes>, materials: Res<PieceMaterials>) {
+    [PieceColour::White, PieceColour::Black]
+        .into_iter()
+        .for_each(|colour| {
+            let back_row = colour.starting_back_rank();
+            let front_row = colour.starting_front_rank();
+
+            [
+                PieceKind::Rook,
+                PieceKind::Knight,
+                PieceKind::Bishop,
+                PieceKind::Queen,
+                PieceKind::King,
+                PieceKind::Bishop,
+                PieceKind::Knight,
+                PieceKind::Rook,
+            ]
+                .into_iter()
+                .enumerate()
+                .for_each(|(file, kind)| {
+                    spawn_piece(
+                        &mut commands,
+                        &materials,
+                        &meshes,
+                        colour,
+                        kind,
+                        (back_row, file as u8).into(),
+                    );
+                });
+
+            (0..=7).for_each(|file| {
+                spawn_piece(
+                    &mut commands,
+                    &materials,
+                    &meshes,
+                    colour,
+                    PieceKind::Pawn,
+                    (front_row, file).into(),
+                );
+            });
+        });
+}
+
+fn spawn_piece(
+    commands: &mut Commands,
+    materials: &PieceMaterials,
+    meshes: &PieceMeshes,
+    colour: PieceColour,
+    kind: PieceKind,
+    square: Square,
+) -> Entity {
+    commands
+        .spawn_bundle((place_on_square(colour, square), GlobalTransform::identity()))
+        .insert(Piece {
+            colour,
+            kind,
+            square,
+        })
+        .with_children(|parent| {
+            parent.spawn_bundle(PbrBundle {
+                mesh: meshes.get(kind),
+                material: materials.get(colour),
+                ..Default::default()
+            });
+        })
+        .id()
+}
+
+fn promote_pawn_at_final_rank(
+    mut commands: Commands,
+    mut game_state: ResMut<State<GameState>>,
+    mut turn: ResMut<PlayerTurn>,
+    mut promoted_pawn: ResMut<PromotedPawn>,
+    input: Res<Input<KeyCode>>,
+    meshes: Res<PieceMeshes>,
+    materials: Res<PieceMaterials>,
+    pieces: Query<(Entity, &Piece)>,
+) {
+    let entity = promoted_pawn
+        .0
+        .expect("should always have a promoted pawn entity when in PawnPromotion state");
+    let (_, piece) = pieces
+        .get(entity)
+        .expect("promoted pawn should always exist");
+
+    if input.just_pressed(KeyCode::Return) && piece.kind != PieceKind::Pawn {
+        promoted_pawn.0 = None;
+        turn.next();
+        game_state.set(GameState::NothingSelected).unwrap();
+    };
+
+    let promotions = [
+        PieceKind::Knight,
+        PieceKind::Bishop,
+        PieceKind::Rook,
+        PieceKind::Queen,
+    ];
+
+    let index_of = |kind: PieceKind| {
+        promotions
+            .iter()
+            .enumerate()
+            .find_map(|(idx, k)| (*k == kind).then(|| idx))
+            .expect(&format!(
+                "promoted to unexpected piece kind {:?}",
+                piece.kind
+            ))
+    };
+
+    let new_kind = if piece.kind == PieceKind::Pawn && input.just_pressed(KeyCode::Left) {
+        PieceKind::Queen
+    } else if piece.kind == PieceKind::Pawn && input.just_pressed(KeyCode::Right) {
+        PieceKind::Knight
+    } else if input.just_pressed(KeyCode::Left) {
+        let index = index_of(piece.kind);
+        promotions[(index as isize - 1) as usize % promotions.len()]
+    } else if input.just_pressed(KeyCode::Right) {
+        let index = index_of(piece.kind);
+        promotions[(index + 1) % promotions.len()]
+    } else {
+        return;
+    };
+
+    let square = piece.square;
+    commands.entity(entity).despawn_recursive();
+
+    let new_entity = spawn_piece(&mut commands, &materials, &meshes, turn.0, new_kind, square);
+    promoted_pawn.0 = Some(new_entity);
+}
+
+fn place_on_square(colour: PieceColour, square: Square) -> Transform {
+    let angle = if colour == PieceColour::Black {
+        PI
+    } else {
+        0.0
+    };
+
+    let scale = Transform::from_scale(Vec3::splat(SCALE_FACTOR));
+    let rotation = Transform::from_rotation(Quat::from_rotation_y(angle));
+
+    let translation = Transform::from_translation(square.to_translation());
+
+    translation * rotation * scale
+}
+
+struct PieceMeshes {
+    king: Handle<Mesh>,
+    pawn: Handle<Mesh>,
+    knight: Handle<Mesh>,
+    rook: Handle<Mesh>,
+    bishop: Handle<Mesh>,
+    queen: Handle<Mesh>,
+}
+
+impl PieceMeshes {
+    pub fn get(&self, kind: PieceKind) -> Handle<Mesh> {
+        match kind {
+            PieceKind::King => self.king.clone(),
+            PieceKind::Queen => self.queen.clone(),
+            PieceKind::Bishop => self.bishop.clone(),
+            PieceKind::Knight => self.knight.clone(),
+            PieceKind::Rook => self.rook.clone(),
+            PieceKind::Pawn => self.pawn.clone(),
+        }
+    }
+}
+
+impl FromWorld for PieceMeshes {
+    fn from_world(world: &mut World) -> Self {
+        let assets = world.get_resource::<AssetServer>().unwrap();
+        Self {
+            king: assets.load("meshes/chess pieces.glb#Mesh0/Primitive0"),
+            pawn: assets.load("meshes/chess pieces.glb#Mesh1/Primitive0"),
+            knight: assets.load("meshes/chess pieces.glb#Mesh2/Primitive0"),
+            rook: assets.load("meshes/chess pieces.glb#Mesh3/Primitive0"),
+            bishop: assets.load("meshes/chess pieces.glb#Mesh4/Primitive0"),
+            queen: assets.load("meshes/chess pieces.glb#Mesh5/Primitive0"),
+        }
+    }
+}
+
+struct PieceMaterials {
+    white: Handle<StandardMaterial>,
+    black: Handle<StandardMaterial>,
+}
+
+impl PieceMaterials {
+    pub fn get(&self, piece_colour: PieceColour) -> Handle<StandardMaterial> {
+        match piece_colour {
+            PieceColour::White => self.white.clone(),
+            PieceColour::Black => self.black.clone(),
+        }
+    }
+}
+
+impl FromWorld for PieceMaterials {
+    fn from_world(world: &mut World) -> Self {
+        let mut materials = world
+            .get_resource_mut::<Assets<StandardMaterial>>()
+            .unwrap();
+        let black = materials.add(Color::rgb(0.0, 0.2, 0.2).into());
+        let white = materials.add(Color::rgb(1.0, 0.8, 0.8).into());
+
+        Self { white, black }
     }
 }

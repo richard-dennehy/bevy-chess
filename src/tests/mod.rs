@@ -1,6 +1,6 @@
 mod board_tests {
     use crate::board::BoardState;
-    use crate::pieces::{Piece, PieceColour, PieceKind};
+    use crate::model::{Piece, PieceColour, PieceKind};
 
     #[test]
     fn board_state_for_default_board() {
@@ -2081,7 +2081,7 @@ mod board_tests {
 
 mod piece_tests {
     use crate::moves_calculator::{Move, PotentialMove};
-    use crate::pieces::*;
+    use crate::model::*;
 
     fn single_move_path((x, y): (u8, u8), colour: PieceColour) -> PiecePath {
         PiecePath::single(

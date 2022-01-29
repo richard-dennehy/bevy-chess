@@ -1,5 +1,5 @@
-use crate::board::{GameState, PlayerTurn};
 use bevy::prelude::*;
+use crate::systems::chess::{GameState, PlayerTurn};
 
 pub struct UiPlugin;
 impl Plugin for UiPlugin {
