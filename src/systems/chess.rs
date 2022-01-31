@@ -515,8 +515,7 @@ fn move_pieces(
 ) {
     // note: castling moves two pieces on the same turn
 
-    // TODO try making the speed proportional to the square root of the total distance so large moves don't feel so slow
-    let average_velocity = 6.5;
+    let average_velocity = 5.0;
 
     let any_updated =
         query
@@ -526,7 +525,7 @@ fn move_pieces(
 
                 if direction.length() > f32::EPSILON {
                     let distance = (move_piece.from - move_piece.to).length();
-                    let target_time = distance / average_velocity;
+                    let target_time = distance.sqrt() / average_velocity;
 
                     move_piece.elapsed += time.delta_seconds();
                     if move_piece.elapsed > target_time {
@@ -536,8 +535,9 @@ fn move_pieces(
                         let eased = ease_xz(t);
 
                         let xz_translation = move_piece.from.lerp(move_piece.to, eased);
-                        // TODO scale down proportionate to distance
-                        let y_translation = Vec3::new(0.0, ease_y(t) * 0.8, 0.0);
+
+                        let max_height = 0.5 * distance.sqrt();
+                        let y_translation = Vec3::new(0.0, ease_y(t) * max_height, 0.0);
 
                         transform.translation = xz_translation + y_translation;
                     }

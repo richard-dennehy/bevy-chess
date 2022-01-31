@@ -1,1 +1,2 @@
  - Create a proper texture for the chessboard (blender nodes material doesn't appear to import/export properly)
+ - Run clippy
