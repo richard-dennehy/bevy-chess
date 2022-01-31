@@ -4,6 +4,14 @@ use bevy::math::Vec3;
 use bevy::prelude::Entity;
 use bevy::utils::HashMap;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod board_tests;
+    mod piece_tests;
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Piece {
     pub colour: PieceColour,

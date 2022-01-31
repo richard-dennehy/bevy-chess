@@ -1,5 +1,5 @@
 use crate::model::{Piece, PieceColour, PieceKind, Square};
-use crate::systems::chess::GameState;
+use super::GameState;
 use bevy::prelude::*;
 use std::f32::consts::PI;
 use bevy_mod_picking::PickableBundle;
@@ -108,18 +108,18 @@ fn create_pieces(mut commands: Commands, meshes: Res<PieceMeshes>, materials: Re
                 PieceKind::Knight,
                 PieceKind::Rook,
             ]
-            .into_iter()
-            .enumerate()
-            .for_each(|(file, kind)| {
-                spawn_piece(
-                    &mut commands,
-                    &materials,
-                    &meshes,
-                    colour,
-                    kind,
-                    (back_row, file as u8).into(),
-                );
-            });
+                .into_iter()
+                .enumerate()
+                .for_each(|(file, kind)| {
+                    spawn_piece(
+                        &mut commands,
+                        &materials,
+                        &meshes,
+                        colour,
+                        kind,
+                        (back_row, file as u8).into(),
+                    );
+                });
 
             (0..=7).for_each(|file| {
                 spawn_piece(

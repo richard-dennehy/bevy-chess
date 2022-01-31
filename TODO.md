@@ -1,3 +1,1 @@
- - Experiment with using `#[path]` to better map test modules to files
- - Break up the test suite into something sane
  - Create a proper texture for the chessboard (blender nodes material doesn't appear to import/export properly)

@@ -3,9 +3,6 @@
 #![feature(let_else)]
 #![feature(bool_to_option)]
 
-#[cfg(test)]
-mod tests;
-
 mod moves_calculator;
 
 pub mod easing;
@@ -15,5 +12,4 @@ pub mod ui;
 pub mod systems {
     pub mod orbit_camera;
     pub mod chess;
-    mod game_set_up;
 }

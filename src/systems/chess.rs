@@ -3,12 +3,19 @@ use crate::model::{
     Square,
 };
 use crate::moves_calculator::CalculatorResult;
-use crate::systems::game_set_up;
-use crate::systems::game_set_up::{GameSetUpPlugin, PieceMaterials, PieceMeshes, SquareMaterials};
 use crate::{easing, moves_calculator};
 use bevy::prelude::*;
 use bevy_mod_picking::PickingCamera;
 use std::fmt::Formatter;
+
+mod game_set_up;
+use game_set_up::*;
+
+#[cfg(test)]
+mod tests {
+    mod checking_for_check_tests;
+    mod special_move_tests;
+}
 
 pub struct ChessPlugin;
 impl Plugin for ChessPlugin {
