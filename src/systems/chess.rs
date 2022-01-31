@@ -13,8 +13,11 @@ use game_set_up::*;
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     mod checking_for_check_tests;
     mod special_move_tests;
+    mod piece_movement_tests;
 }
 
 pub struct ChessPlugin;
@@ -512,12 +515,6 @@ fn move_pieces(
 ) {
     // note: castling moves two pieces on the same turn
 
-    // TODO test these
-    // need to map between 0->1 range and -1->1 range
-    let ease_xz = |x: f32| (easing::sigmoid(-0.1)((x * 2.0) - 1.0) + 1.0) / 2.0;
-    // map from 0->1 to 0->0.5->0
-    let ease_y = |y: f32| easing::sigmoid(0.3)(if y > 0.5 { 1.0 - y } else { y });
-
     // TODO try making the speed proportional to the square root of the total distance so large moves don't feel so slow
     let average_velocity = 6.5;
 
@@ -539,7 +536,8 @@ fn move_pieces(
                         let eased = ease_xz(t);
 
                         let xz_translation = move_piece.from.lerp(move_piece.to, eased);
-                        let y_translation = Vec3::new(0.0, ease_y(t) * 1.2, 0.0);
+                        // TODO scale down proportionate to distance
+                        let y_translation = Vec3::new(0.0, ease_y(t) * 0.8, 0.0);
 
                         transform.translation = xz_translation + y_translation;
                     }
@@ -562,6 +560,17 @@ fn move_pieces(
             state.set(GameState::NothingSelected).unwrap();
         }
     }
+}
+
+/// takes an x value in 0..1, maps into -1..1, applies easing, and maps the result back into 0..1
+fn ease_xz(x: f32) -> f32 {
+    (easing::sigmoid(-0.1)((x * 2.0) - 1.0) + 1.0) / 2.0
+}
+
+/// takes an y value in 0..1, maps into 0..1..0, applies easing, and maps the result back into 0..1
+/// such that `ease_y(0.0)` ~= `ease_y(1.0)`
+fn ease_y(y: f32) -> f32 {
+    easing::sigmoid(-0.2)(2.0 * if y > 0.5 { 1.0 - y } else { y })
 }
 
 fn promote_pawn_at_final_rank(

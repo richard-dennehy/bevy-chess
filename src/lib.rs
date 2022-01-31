@@ -2,6 +2,7 @@
 #![feature(int_abs_diff)]
 #![feature(let_else)]
 #![feature(bool_to_option)]
+#![feature(box_syntax)]
 
 mod moves_calculator;
 
