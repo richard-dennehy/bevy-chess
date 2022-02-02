@@ -1,15 +1,16 @@
-use bevy::app::{AppBuilder, EventReader, Plugin};
-use bevy::prelude::{Input, IntoSystem, Mat3, MouseButton, Query, Res, Time, Transform, Vec3};
+use bevy::app::{EventReader, Plugin};
+use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;
 use bevy::input::mouse::MouseMotion;
 
 pub struct OrbitCameraPlugin;
 impl Plugin for OrbitCameraPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_system(rotate_camera.system());
+    fn build(&self, app: &mut App) {
+        app.add_system(rotate_camera);
     }
 }
 
+#[derive(Component)]
 pub struct GameCamera {
     eye: Vec3,
     target: Vec3,
@@ -52,7 +53,7 @@ fn rotate_camera(
     time: Res<Time>,
     mouse: Res<Input<MouseButton>>,
 ) {
-    let (mut transform, mut camera) = cameras.single_mut().expect("no primary camera");
+    let (mut transform, mut camera) = cameras.single_mut();
 
     let rotation_speed = 1.0 * time.delta_seconds();
     let mouse_sensitivity = 0.33;
@@ -62,7 +63,8 @@ fn rotate_camera(
         let x_movement: f32 = mouse_motion.iter().map(|motion| motion.delta.x).sum();
         camera.yaw_offset - ((x_movement * mouse_sensitivity) * rotation_speed)
     } else {
-        if (camera.yaw_offset.abs() - recentre_speed).abs() < f32::EPSILON {
+        // FIXME using abs breaks this and it probably shouldn't
+        if (camera.yaw_offset.abs() - recentre_speed) < f32::EPSILON {
             0.0
         } else if camera.yaw_offset < 0.0 {
             camera.yaw_offset + recentre_speed

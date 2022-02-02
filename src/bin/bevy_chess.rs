@@ -8,7 +8,7 @@ use bevy_chess::systems::chess::ChessPlugin;
 use bevy_chess::systems::orbit_camera::{GameCamera, OrbitCameraPlugin};
 
 fn main() {
-    App::build()
+    App::new()
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(WindowDescriptor {
             width: 1600.0,
@@ -32,9 +32,9 @@ fn setup(mut commands: Commands) {
         .insert_bundle(PickingCameraBundle::default())
         .insert(GameCamera::new(Vec3::new(0.0, 13.0, -9.0), Vec3::ZERO));
 
-    commands.spawn_bundle(LightBundle {
-        transform: Transform::from_xyz(1.0, 12.0, 2.0),
-        light: Light {
+    commands.spawn_bundle(PointLightBundle {
+        transform: Transform::from_xyz(1.0, 10.0, 2.0),
+        point_light: PointLight {
             intensity: 400.0,
             range: 60.0,
             ..Default::default()

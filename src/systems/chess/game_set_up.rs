@@ -6,15 +6,15 @@ use bevy_mod_picking::PickableBundle;
 
 pub struct GameSetUpPlugin;
 impl Plugin for GameSetUpPlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.init_resource::<SquareMaterials>()
             .init_resource::<PieceMeshes>()
             .init_resource::<PieceMaterials>()
-            .add_startup_system(create_board.system())
-            .add_startup_system(create_floor_plane.system())
-            .add_startup_system(create_pieces.system())
+            .add_startup_system(create_board)
+            .add_startup_system(create_floor_plane)
+            .add_startup_system(create_pieces)
             .add_system_set(
-                SystemSet::on_update(GameState::NewGame).with_system(reset_pieces.system()),
+                SystemSet::on_update(GameState::NewGame).with_system(reset_pieces),
             );
     }
 }
@@ -55,15 +55,12 @@ fn create_board(
         (0..8).for_each(|file| {
             let square = Square { rank, file };
 
+            // FIXME transparency
             commands
                 .spawn_bundle(PbrBundle {
                     mesh: mesh.clone(),
                     material: materials.none.clone(),
                     transform: Transform::from_translation(square.to_translation()),
-                    visible: Visible {
-                        is_transparent: true,
-                        is_visible: true,
-                    },
                     ..Default::default()
                 })
                 .insert_bundle(PickableBundle::default())

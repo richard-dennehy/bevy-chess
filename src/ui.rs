@@ -3,14 +3,14 @@ use crate::systems::chess::{GameState, PlayerTurn};
 
 pub struct UiPlugin;
 impl Plugin for UiPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_startup_system(initialise.system())
-            .add_system(update_next_move.system())
-            .add_system(update_prompt.system());
+    fn build(&self, app: &mut App) {
+        app.add_startup_system(initialise)
+            .add_system(update_next_move)
+            .add_system(update_prompt);
     }
 }
 
-fn update_next_move(turn: Res<PlayerTurn>, query: Query<&mut Text, With<NextMoveText>>) {
+fn update_next_move(turn: Res<PlayerTurn>, mut query: Query<&mut Text, With<NextMoveText>>) {
     if !turn.is_changed() {
         return;
     }
@@ -20,7 +20,7 @@ fn update_next_move(turn: Res<PlayerTurn>, query: Query<&mut Text, With<NextMove
     })
 }
 
-fn update_prompt(game_state: Res<State<GameState>>, query: Query<&mut Text, With<NextMoveText>>) {
+fn update_prompt(game_state: Res<State<GameState>>, mut query: Query<&mut Text, With<NextMoveText>>) {
     if !game_state.is_changed() {
         return;
     }
@@ -33,10 +33,8 @@ fn update_prompt(game_state: Res<State<GameState>>, query: Query<&mut Text, With
 fn initialise(
     mut commands: Commands,
     asset_server: ResMut<AssetServer>,
-    mut colour_materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let font = asset_server.load("fonts/FiraSans-Bold.ttf");
-    let material = colour_materials.add(Color::NONE.into());
 
     commands.spawn_bundle(UiCameraBundle::default());
 
@@ -51,7 +49,7 @@ fn initialise(
                 },
                 ..Default::default()
             },
-            material,
+            color: UiColor(Color::NONE),
             ..Default::default()
         })
         .with_children(|parent| {
@@ -92,4 +90,5 @@ fn initialise(
         });
 }
 
+#[derive(Component)]
 struct NextMoveText;

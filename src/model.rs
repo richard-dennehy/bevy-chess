@@ -1,7 +1,7 @@
 use std::collections::hash_map::IntoIter;
 use std::fmt::Formatter;
 use bevy::math::Vec3;
-use bevy::prelude::Entity;
+use bevy::prelude::{Component, Entity};
 use bevy::utils::HashMap;
 
 #[cfg(test)]
@@ -12,7 +12,7 @@ mod tests {
     mod piece_tests;
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Component)]
 pub struct Piece {
     pub colour: PieceColour,
     pub kind: PieceKind,
@@ -489,7 +489,7 @@ impl<'piece> FromIterator<&'piece Piece> for BoardState {
     }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, Component)]
 pub struct Square {
     pub rank: u8,
     pub file: u8,

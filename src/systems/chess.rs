@@ -22,7 +22,7 @@ mod tests {
 
 pub struct ChessPlugin;
 impl Plugin for ChessPlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.add_plugin(GameSetUpPlugin)
             .init_resource::<SelectedSquare>()
             .init_resource::<SelectedPiece>()
@@ -32,54 +32,54 @@ impl Plugin for ChessPlugin {
             .init_resource::<Option<HighlightedSquare>>()
             .init_resource::<SpecialMoveData>()
             .add_state(GameState::NewGame)
-            .add_system(highlight_square_on_hover.system())
-            .add_system(restart_game.system())
+            .add_system(highlight_square_on_hover)
+            .add_system(restart_game)
             .add_system_set(
-                SystemSet::on_update(GameState::NewGame).with_system(start_new_game.system()),
+                SystemSet::on_update(GameState::NewGame).with_system(start_new_game),
             )
             .add_system_set(
                 SystemSet::on_enter(GameState::NothingSelected)
-                    .with_system(reset_selected.system().label("reset_selected"))
+                    .with_system(reset_selected.label("reset_selected"))
                     .with_system(
                         calculate_all_moves
-                            .system()
                             .label("calculate_moves")
                             .after("reset_selected"),
                     )
-                    .with_system(colour_squares.system().after("calculate_moves")),
+                    .with_system(colour_squares.after("calculate_moves")),
             )
             .add_system_set(
                 SystemSet::on_update(GameState::NothingSelected)
-                    .with_system(select_square.system()),
+                    .with_system(select_square),
             )
             .add_system_set(
-                SystemSet::on_update(GameState::SquareSelected).with_system(select_piece.system()),
+                SystemSet::on_update(GameState::SquareSelected).with_system(select_piece),
             )
             .add_system_set(
-                SystemSet::on_enter(GameState::PieceSelected).with_system(colour_squares.system()),
+                SystemSet::on_enter(GameState::PieceSelected).with_system(colour_squares),
             )
             .add_system_set(
-                SystemSet::on_update(GameState::PieceSelected).with_system(select_square.system()),
+                SystemSet::on_update(GameState::PieceSelected).with_system(select_square),
             )
             .add_system_set(
                 SystemSet::on_update(GameState::TargetSquareSelected)
-                    .with_system(apply_piece_move.system()),
+                    .with_system(apply_piece_move),
             )
             .add_system_set(
                 SystemSet::on_exit(GameState::TargetSquareSelected)
-                    .with_system(despawn_taken_pieces.system())
-                    .with_system(reset_selected.system()),
+                    .with_system(despawn_taken_pieces)
+                    .with_system(reset_selected),
             )
             .add_system_set(
-                SystemSet::on_update(GameState::MovingPiece).with_system(translate_moved_pieces.system()),
+                SystemSet::on_update(GameState::MovingPiece).with_system(translate_moved_pieces),
             )
             .add_system_set(
                 SystemSet::on_update(GameState::PawnPromotion)
-                    .with_system(promote_pawn_at_final_rank.system()),
+                    .with_system(promote_pawn_at_final_rank),
             );
     }
 }
 
+#[derive(Component)]
 pub struct Taken;
 
 #[derive(Default)]
@@ -89,6 +89,7 @@ pub struct SelectedPiece(pub Option<Entity>);
 #[derive(Default)]
 pub struct PromotedPawn(pub Option<Entity>);
 
+#[derive(Component)]
 pub struct MovePiece {
     pub from: Vec3,
     pub to: Vec3,
@@ -182,6 +183,7 @@ fn colour_squares(
     pieces: Query<(Entity, &Piece)>,
     mut squares: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
 ) {
+    // FIXME this is staggeringly fucked
     squares.for_each_mut(|(entity, square, mut material)| {
         if selected_square.0.contains(&entity) {
             *material = materials.selected.clone();
@@ -319,7 +321,7 @@ fn select_square(
 }
 
 fn selected_entity(pick_state: Query<&PickingCamera>) -> Option<Entity> {
-    if let Some((entity, _)) = pick_state.single().unwrap().intersect_top() {
+    if let Some((entity, _)) = pick_state.single().intersect_top() {
         Some(entity)
     } else {
         None
