@@ -1,16 +1,16 @@
 use bevy::prelude::{IntoSystem, Stage, State, SystemStage, World};
-use bevy_chess::board::{calculate_all_moves, AllValidMoves, GameState, PlayerTurn};
-use bevy_chess::model::{Piece, PieceColour, PieceKind};
-
+use bevy_chess::model::{AllValidMoves, Piece, PieceColour, PieceKind, Square};
+use bevy_chess::systems::chess::{calculate_all_moves, GameState, PlayerTurn};
 use criterion::*;
 
 fn calculate_moves_for_default_board(c: &mut Criterion) {
     c.bench_function("calculate moves for default board", |b| {
         let (mut world, mut system) = setup();
 
-        let ids = pieces().into_iter().map(|piece| {
-            world.spawn().insert(piece).id()
-        }).collect::<Vec<_>>();
+        let ids = pieces()
+            .into_iter()
+            .map(|piece| world.spawn().insert(piece).id())
+            .collect::<Vec<_>>();
 
         b.iter(|| {
             system.run(&mut world);
@@ -49,44 +49,28 @@ fn pieces() -> Vec<Piece> {
         PieceKind::Rook,
     ];
     let front_row = |colour: PieceColour| {
-        if colour == PieceColour::White {
-            (0..8)
-                .map(|idx| Piece {
-                    x: 1,
-                    y: idx,
-                    kind: PieceKind::Pawn,
-                    colour,
-                })
-                .collect::<Vec<_>>()
-        } else {
-            (0..8)
-                .map(|idx| Piece {
-                    x: 6,
-                    y: idx,
-                    kind: PieceKind::Pawn,
-                    colour,
-                })
-                .collect::<Vec<_>>()
-        }
+        (0..8)
+            .map(|file| Piece {
+                square: Square::new(colour.starting_front_rank(), file),
+                kind: PieceKind::Pawn,
+                colour,
+            })
+            .collect::<Vec<_>>()
     };
 
     back_row
         .iter()
         .enumerate()
-        .map(|(idx, kind)| Piece {
-            x: 0,
-            y: idx as _,
-            colour: PieceColour::White,
-            kind: *kind,
-        })
+        .map(|(idx, kind)| Piece::white (
+            *kind,
+            Square::new(0, idx as _),
+        ))
         .chain(front_row(PieceColour::White).into_iter())
         .chain(front_row(PieceColour::Black).into_iter())
-        .chain(back_row.iter().enumerate().map(|(idx, kind)| Piece {
-            x: 7,
-            y: idx as _,
-            colour: PieceColour::Black,
-            kind: *kind,
-        }))
+        .chain(back_row.iter().enumerate().map(|(idx, kind)| Piece::black (
+            *kind,
+            Square::new(7, idx as _)
+        )))
         .collect::<Vec<_>>()
 }
 

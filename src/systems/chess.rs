@@ -63,7 +63,7 @@ impl Plugin for ChessPlugin {
             )
             .add_system_set(
                 SystemSet::on_update(GameState::TargetSquareSelected)
-                    .with_system(move_piece.system()),
+                    .with_system(apply_piece_move.system()),
             )
             .add_system_set(
                 SystemSet::on_exit(GameState::TargetSquareSelected)
@@ -71,7 +71,7 @@ impl Plugin for ChessPlugin {
                     .with_system(reset_selected.system()),
             )
             .add_system_set(
-                SystemSet::on_update(GameState::MovingPiece).with_system(move_pieces.system()),
+                SystemSet::on_update(GameState::MovingPiece).with_system(translate_moved_pieces.system()),
             )
             .add_system_set(
                 SystemSet::on_update(GameState::PawnPromotion)
@@ -83,7 +83,6 @@ impl Plugin for ChessPlugin {
 pub struct Taken;
 
 #[derive(Default)]
-// TODO is it possible to pass around the actual Square rather than an Entity ID?
 pub struct SelectedSquare(pub Option<Entity>);
 #[derive(Default)]
 pub struct SelectedPiece(pub Option<Entity>);
@@ -171,6 +170,7 @@ impl PlayerTurn {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn colour_squares(
     mut highlighted_square: ResMut<Option<HighlightedSquare>>,
     turn: Res<PlayerTurn>,
@@ -213,7 +213,7 @@ fn colour_squares(
                 .iter()
                 .find(|(entity, piece)| piece.square == *square && promoted == *entity);
 
-            if let Some(_) = piece {
+            if piece.is_some() {
                 *material = materials.selected.clone();
                 return;
             }
@@ -286,6 +286,7 @@ pub fn calculate_all_moves(
     }
 }
 
+#[allow(clippy::collapsible_else_if)]
 fn select_square(
     mut input: ResMut<Input<MouseButton>>,
     mut selected_square: ResMut<SelectedSquare>,
@@ -349,7 +350,8 @@ fn select_piece(
         .unwrap_or_else(|| game_state.set(GameState::NothingSelected).unwrap());
 }
 
-pub fn move_piece(
+#[allow(clippy::too_many_arguments)]
+pub fn apply_piece_move(
     mut commands: Commands,
     selected_square: Res<SelectedSquare>,
     selected_piece: Res<SelectedPiece>,
@@ -369,7 +371,7 @@ pub fn move_piece(
 
     if let Some(piece_id) = selected_piece.0 {
         let valid_moves = all_valid_moves.get(piece_id);
-        let maybe_valid_move = valid_moves.into_iter().find(|m| m.target_square == *square);
+        let maybe_valid_move = valid_moves.iter().find(|m| m.target_square == *square);
         if let Some(valid_move) = maybe_valid_move {
             let (_, piece) = pieces.get_mut(piece_id).unwrap();
             let piece = *piece;
@@ -429,27 +431,26 @@ pub fn move_piece(
                 }
             }
 
-            pieces
+            if let Some((target_entity, target_piece)) = pieces
                 .iter_mut()
-                .find(|(_, other)| other.square == *square)
-                .map(|(target_entity, target_piece)| {
-                    if target_piece.kind == PieceKind::Rook {
-                        let other_player = player_turn.0.opposite();
-                        let mut castling_data = special_move_data.castling_data_mut(other_player);
+                .find(|(_, other)| other.square == *square) {
+                if target_piece.kind == PieceKind::Rook {
+                    let other_player = player_turn.0.opposite();
+                    let mut castling_data = special_move_data.castling_data_mut(other_player);
 
-                        if target_piece.square.rank == other_player.starting_back_rank()
-                            && target_piece.square.file == 0
-                        {
-                            castling_data.queenside_rook_moved = true;
-                        } else if target_piece.square.rank == other_player.starting_back_rank()
-                            && target_piece.square.file == 7
-                        {
-                            castling_data.kingside_rook_moved = true;
-                        }
+                    if target_piece.square.rank == other_player.starting_back_rank()
+                        && target_piece.square.file == 0
+                    {
+                        castling_data.queenside_rook_moved = true;
+                    } else if target_piece.square.rank == other_player.starting_back_rank()
+                        && target_piece.square.file == 7
+                    {
+                        castling_data.kingside_rook_moved = true;
                     }
+                };
 
-                    commands.entity(target_entity).insert(Taken);
-                });
+                commands.entity(target_entity).insert(Taken);
+            }
 
             commands
                 .entity(piece_id)
@@ -505,7 +506,7 @@ fn start_new_game(
     *special_move_data = Default::default();
 }
 
-fn move_pieces(
+fn translate_moved_pieces(
     mut commands: Commands,
     time: Res<Time>,
     promoted_pawn: Res<PromotedPawn>,
@@ -553,7 +554,7 @@ fn move_pieces(
             });
 
     if !any_updated {
-        if let Some(_) = promoted_pawn.0 {
+        if promoted_pawn.0.is_some() {
             state.set(GameState::PawnPromotion).unwrap();
         } else {
             turn.next();
@@ -573,6 +574,7 @@ fn ease_y(y: f32) -> f32 {
     easing::sigmoid(-0.2)(2.0 * if y > 0.5 { 1.0 - y } else { y })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn promote_pawn_at_final_rank(
     mut commands: Commands,
     mut game_state: ResMut<State<GameState>>,
@@ -608,7 +610,7 @@ fn promote_pawn_at_final_rank(
             .iter()
             .enumerate()
             .find_map(|(idx, k)| (*k == kind).then(|| idx))
-            .expect(&format!(
+            .unwrap_or_else(|| panic!(
                 "promoted to unexpected piece kind {:?}",
                 piece.kind
             ))

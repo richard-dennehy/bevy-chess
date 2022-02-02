@@ -53,6 +53,7 @@ pub enum PieceColour {
 }
 
 impl PieceColour {
+    #[must_use]
     pub fn opposite(&self) -> Self {
         match self {
             PieceColour::White => PieceColour::Black,
@@ -678,8 +679,13 @@ impl AllValidMoves {
     pub fn clear(&mut self) {
         self._0.iter_mut().for_each(|(_, moves)| moves.clear())
     }
+}
 
-    pub fn into_iter(self) -> IntoIter<Entity, Vec<Move>> {
+impl IntoIterator for AllValidMoves {
+    type Item = (Entity, Vec<Move>);
+    type IntoIter = IntoIter<Entity, Vec<Move>>;
+
+    fn into_iter(self) -> Self::IntoIter {
         self._0.into_iter()
     }
 }

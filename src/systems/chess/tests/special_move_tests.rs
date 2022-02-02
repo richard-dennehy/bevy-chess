@@ -1,6 +1,6 @@
 use crate::model::{AllValidMoves, CastlingData, LastPawnDoubleStep, Move, Piece, PieceColour, PieceKind, SpecialMoveData, Square};
 use crate::systems::chess::{
-    calculate_all_moves, move_piece, GameState, MovePiece, PlayerTurn, PromotedPawn, SelectedPiece,
+    calculate_all_moves, apply_piece_move, GameState, MovePiece, PlayerTurn, PromotedPawn, SelectedPiece,
     SelectedSquare, Taken,
 };
 use bevy::ecs::component::Component;
@@ -76,7 +76,7 @@ fn setup() -> (World, SystemStage) {
         SystemSet::on_update(GameState::NothingSelected).with_system(calculate_all_moves.system()),
     );
     update_stage.add_system_set(
-        SystemSet::on_update(GameState::TargetSquareSelected).with_system(move_piece.system()),
+        SystemSet::on_update(GameState::TargetSquareSelected).with_system(apply_piece_move.system()),
     );
     update_stage.add_system_set(
         SystemSet::on_update(GameState::MovingPiece)
