@@ -183,7 +183,6 @@ fn colour_squares(
     pieces: Query<(Entity, &Piece)>,
     mut squares: Query<(Entity, &Square, &mut Handle<StandardMaterial>)>,
 ) {
-    // FIXME this is staggeringly fucked
     squares.for_each_mut(|(entity, square, mut material)| {
         if selected_square.0.contains(&entity) {
             *material = materials.selected.clone();

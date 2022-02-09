@@ -55,7 +55,6 @@ fn create_board(
         (0..8).for_each(|file| {
             let square = Square { rank, file };
 
-            // FIXME transparency
             commands
                 .spawn_bundle(PbrBundle {
                     mesh: mesh.clone(),
@@ -189,10 +188,26 @@ impl FromWorld for SquareMaterials {
             .get_resource_mut::<Assets<StandardMaterial>>()
             .unwrap();
         SquareMaterials {
-            highlight: materials.add(highlight.into()),
-            selected: materials.add(selected.into()),
-            valid_selection: materials.add(valid_selection.into()),
-            none: materials.add(Color::NONE.into()),
+            highlight: materials.add(StandardMaterial {
+                base_color_texture: Some(highlight),
+                alpha_mode: AlphaMode::Blend,
+                ..Default::default()
+            }),
+            selected: materials.add(StandardMaterial {
+                base_color_texture: Some(selected),
+                alpha_mode: AlphaMode::Blend,
+                ..Default::default()
+            }),
+            valid_selection: materials.add(StandardMaterial {
+                base_color_texture: Some(valid_selection),
+                alpha_mode: AlphaMode::Blend,
+                ..Default::default()
+            }),
+            none: materials.add(StandardMaterial {
+                base_color: Color::NONE,
+                alpha_mode: AlphaMode::Blend,
+                ..Default::default()
+            }),
         }
     }
 }
