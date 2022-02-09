@@ -46,7 +46,6 @@ impl GameCamera {
     }
 }
 
-#[allow(clippy::collapsible_else_if)]
 fn rotate_camera(
     mut cameras: Query<(&mut Transform, &mut GameCamera)>,
     mut mouse_motion: EventReader<MouseMotion>,
@@ -63,7 +62,7 @@ fn rotate_camera(
         let x_movement: f32 = mouse_motion.iter().map(|motion| motion.delta.x).sum();
         camera.yaw_offset - ((x_movement * mouse_sensitivity) * rotation_speed)
     } else {
-        // FIXME using abs breaks this and it probably shouldn't
+        #[allow(clippy::float_equality_without_abs)]
         if (camera.yaw_offset.abs() - recentre_speed) < f32::EPSILON {
             0.0
         } else if camera.yaw_offset < 0.0 {

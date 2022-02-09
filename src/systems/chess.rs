@@ -287,7 +287,6 @@ pub fn calculate_all_moves(
     }
 }
 
-#[allow(clippy::collapsible_else_if)]
 fn select_square(
     mut input: ResMut<Input<MouseButton>>,
     mut selected_square: ResMut<SelectedSquare>,
@@ -313,6 +312,7 @@ fn select_square(
             game_state.set(GameState::SquareSelected).unwrap();
         }
     } else {
+        #[allow(clippy::collapsible_else_if)]
         if *game_state.current() != GameState::NothingSelected {
             game_state.set(GameState::NothingSelected).unwrap();
         }

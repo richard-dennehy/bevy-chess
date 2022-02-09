@@ -149,11 +149,11 @@ impl<'game> MoveCalculator<'game> {
         }
     }
 
-    #[allow(clippy::manual_range_contains)]
     fn find_en_passant_pieces(&self) -> (Option<EnPassantMove>, Option<EnPassantMove>) {
         if let Some(pawn_double_step) = &self.special_move_data.last_pawn_double_step {
             let find_pawn_in_column = |offset: i8| {
                 let expected_y = pawn_double_step.square.file as i8 + offset;
+                #[allow(clippy::manual_range_contains)]
                 if expected_y < 0 || expected_y > 7 {
                     return None;
                 };

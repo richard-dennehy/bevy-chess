@@ -3,17 +3,17 @@ use crate::systems::chess::{
     calculate_all_moves, apply_piece_move, GameState, MovePiece, PlayerTurn, PromotedPawn, SelectedPiece,
     SelectedSquare, Taken,
 };
-use bevy::ecs::component::Component;
+use bevy::ecs::system::Resource;
 use bevy::prelude::*;
 
 trait WorldTestUtils {
-    fn overwrite_resource<T: Component>(&mut self, resource: T);
+    fn overwrite_resource<T: Resource>(&mut self, resource: T);
     fn check_and_overwrite_state(&mut self, expected_state: GameState, new_state: GameState);
     fn move_piece(&mut self, piece_id: Entity, square: Square);
 }
 
 impl WorldTestUtils for World {
-    fn overwrite_resource<T: Component>(&mut self, resource: T) {
+    fn overwrite_resource<T: Resource>(&mut self, resource: T) {
         *self.get_resource_mut::<T>().unwrap() = resource;
     }
 
@@ -91,7 +91,7 @@ fn fake_piece_movement(
     mut commands: Commands,
     mut state: ResMut<State<GameState>>,
     mut turn: ResMut<PlayerTurn>,
-    query: Query<(Entity, &MovePiece, &mut Piece)>,
+    mut query: Query<(Entity, &MovePiece, &mut Piece)>,
 ) {
     assert_eq!(state.current(), &GameState::MovingPiece);
 
@@ -105,7 +105,7 @@ fn fake_piece_movement(
     state.set(GameState::NothingSelected).unwrap();
 }
 
-fn fake_despawn(mut commands: Commands, query: Query<Entity, With<Taken>>) {
+fn fake_despawn(mut commands: Commands, mut query: Query<Entity, With<Taken>>) {
     // leave entity with Taken component so it can be asserted against, but remove from board so it doesn't get in the way
     query.for_each_mut(|entity| {
         commands.entity(entity).remove::<Piece>();
