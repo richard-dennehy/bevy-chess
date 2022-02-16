@@ -237,13 +237,16 @@ impl PieceMeshes {
 impl FromWorld for PieceMeshes {
     fn from_world(world: &mut World) -> Self {
         let assets = world.get_resource::<AssetServer>().unwrap();
+
+        let load = |filename: &str| assets.load(&format!("meshes/pieces/{filename}.glb#Mesh0/Primitive0"));
+
         Self {
-            king: assets.load("meshes/chess pieces.glb#Mesh0/Primitive0"),
-            pawn: assets.load("meshes/chess pieces.glb#Mesh1/Primitive0"),
-            knight: assets.load("meshes/chess pieces.glb#Mesh2/Primitive0"),
-            rook: assets.load("meshes/chess pieces.glb#Mesh3/Primitive0"),
-            bishop: assets.load("meshes/chess pieces.glb#Mesh4/Primitive0"),
-            queen: assets.load("meshes/chess pieces.glb#Mesh5/Primitive0"),
+            king: load("king"),
+            pawn: load("pawn"),
+            knight: load("knight"),
+            rook: load("rook"),
+            bishop: load("bishop"),
+            queen: load("queen"),
         }
     }
 }
